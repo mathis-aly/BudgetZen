@@ -60,8 +60,10 @@ import { MonthlyCloseWizard } from '@/features/monthly-close';
 import { TaxesView } from '@/features/taxes';
 import { CustomIndicesView } from '@/features/custom-indices';
 import { AnalyticsView } from '@/features/analytics';
+import { useEffect as useSandboxSyncEffect } from 'react';
 import { SettingsView } from '@/features/settings';
 import { useCommandPalette } from '@/features/command-palette';
+import { useSandbox } from '@/features/dev-console';
 import { cn } from '@/lib/cn';
 
 const PRIMARY_NAV_ITEMS: Array<{
@@ -79,8 +81,24 @@ const PRIMARY_NAV_ITEMS: Array<{
 ];
 
 export function BudgetAppShell({ initialData }: { initialData: AppBootstrapData }) {
-  const [data, setData] = useState<AppBootstrapData>(initialData);
+  const [realData, setRealData] = useState<AppBootstrapData>(initialData);
   const [activeTab, setActiveTab] = useState<NavTab>('dashboard');
+  const {
+    isSandbox,
+    sandboxData,
+    syncRealData,
+    registerShellNav,
+  } = useSandbox();
+
+  useSandboxSyncEffect(() => {
+    syncRealData(realData);
+  }, [realData, syncRealData]);
+
+  useSandboxSyncEffect(() => {
+    registerShellNav(setActiveTab);
+  }, [registerShellNav]);
+
+  const data = isSandbox && sandboxData ? sandboxData : realData;
   const [selectedMonthKey, setSelectedMonthKey] = useState<string>(() =>
     getMonthKey(new Date())
   );
@@ -102,18 +120,24 @@ export function BudgetAppShell({ initialData }: { initialData: AppBootstrapData 
 
   const refreshData = useCallback(
     async (toastMessage?: string) => {
+      if (isSandbox) {
+        if (toastMessage) {
+          showToast(toastMessage, 'success');
+        }
+        return;
+      }
       const res = await fetch('/api/bootstrap', { cache: 'no-store' });
       if (!res.ok) {
         showToast('Impossible d’actualiser les données', 'error');
         return;
       }
       const next: AppBootstrapData = await res.json();
-      setData(next);
+      setRealData(next);
       if (toastMessage) {
         showToast(toastMessage, 'success');
       }
     },
-    [showToast]
+    [isSandbox, showToast]
   );
 
   const openQuickAdd = useCallback(() => {
@@ -293,11 +317,21 @@ export function BudgetAppShell({ initialData }: { initialData: AppBootstrapData 
   };
 
   return (
-    <div className="min-h-dvh flex flex-col bg-[#F7F6F2] dark:bg-[#111110]">
+    <div
+      className={cn(
+        'min-h-dvh flex flex-col bg-[#F7F6F2] dark:bg-[#111110]',
+        isSandbox && 'pt-7'
+      )}
+    >
       <ToastContainer toast={toast} />
 
       {/* Swiss Editorial Masthead Header — Matte Surface, Sharp 1px Rules, Zero Blur */}
-      <header className="sticky top-0 z-30 bg-[#F7F6F2] dark:bg-[#111110] border-b border-[#E2E0D8] dark:border-[#2A2A27] pt-[env(safe-area-inset-top)]">
+      <header
+        className={cn(
+          'sticky z-30 bg-[#F7F6F2] dark:bg-[#111110] border-b border-[#E2E0D8] dark:border-[#2A2A27] pt-[env(safe-area-inset-top)]',
+          isSandbox ? 'top-7' : 'top-0'
+        )}
+      >
         <div className="max-w-6xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between gap-3">
           {/* Editorial Brand Monogram */}
           <button
@@ -685,6 +719,7 @@ export function BudgetAppShell({ initialData }: { initialData: AppBootstrapData 
       <button
         type="button"
         onClick={openQuickAdd}
+        data-tour="sandbox-income-settings"
         aria-label="Ajouter une dépense ou un revenu"
         title="Saisie rapide (⌘E ou N)"
         className="fixed right-5 bottom-[calc(4.75rem+env(safe-area-inset-bottom))] md:bottom-7 md:right-7 z-40 h-12 w-12 rounded-md bg-[#141413] hover:bg-[#2A2A27] dark:bg-[#F2F0E8] dark:hover:bg-[#E2E0D8] text-[#F7F6F2] dark:text-[#111110] border border-[#141413] dark:border-[#F2F0E8] flex items-center justify-center active:translate-y-[1px] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#141413]"

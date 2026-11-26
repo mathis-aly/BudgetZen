@@ -10,6 +10,13 @@ import {
   CommandMenu,
   CommandPaletteProvider,
 } from '@/features/command-palette';
+import {
+  DevConsole,
+  SandboxProvider,
+  SandboxTopBanner,
+  SandboxTour,
+  SandboxTransition,
+} from '@/features/dev-console';
 
 const newsreader = Newsreader({
   subsets: ['latin'],
@@ -94,12 +101,18 @@ export default function RootLayout({
       </head>
       <body className="min-h-dvh font-sans bg-[#F7F6F2] text-[#141413] dark:bg-[#111110] dark:text-[#F2F0E8] selection:bg-[#141413] selection:text-[#F7F6F2] dark:selection:bg-[#F2F0E8] dark:selection:text-[#111110]">
         <PrivacyShieldProvider>
-          <ThemeProvider>
-            <CommandPaletteProvider>
-              {children}
-              <CommandMenu />
-            </CommandPaletteProvider>
-          </ThemeProvider>
+          <SandboxProvider>
+            <ThemeProvider>
+              <CommandPaletteProvider>
+                <SandboxTopBanner />
+                {children}
+                <CommandMenu />
+                <DevConsole />
+                <SandboxTransition />
+                <SandboxTour />
+              </CommandPaletteProvider>
+            </ThemeProvider>
+          </SandboxProvider>
         </PrivacyShieldProvider>
       </body>
     </html>
