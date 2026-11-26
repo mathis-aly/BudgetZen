@@ -17,6 +17,10 @@ import {
   SandboxTour,
   SandboxTransition,
 } from '@/features/dev-console';
+import {
+  PlanningWaveIntro,
+  PlanningWorkspace,
+} from '@/features/planning';
 
 const newsreader = Newsreader({
   subsets: ['latin'],
@@ -110,6 +114,8 @@ export default function RootLayout({
                 <DevConsole />
                 <SandboxTransition />
                 <SandboxTour />
+                <PlanningWorkspace />
+                <PlanningWaveIntro />
               </CommandPaletteProvider>
             </ThemeProvider>
           </SandboxProvider>

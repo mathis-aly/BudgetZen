@@ -26,6 +26,7 @@ import {
 import { formatCurrency, parseQuickCommand } from '@/core';
 import { usePrivacyShield, useTheme } from '@/components/ui';
 import type { NavTab } from '@/features/dashboard';
+import { useSandbox } from '@/features/dev-console';
 import { cn } from '@/lib/cn';
 import { useCommandPalette } from './CommandPaletteContext';
 import { useGlobalShortcuts } from './useGlobalShortcuts';
@@ -41,6 +42,7 @@ function Kbd({ children }: { children: React.ReactNode }) {
 export function CommandMenu() {
   const { open, setOpen, toggle, bridge } = useCommandPalette();
   const { isLocked, lock } = usePrivacyShield();
+  const { isPlanningOpen, isPlanningIntroActive } = useSandbox();
   const { theme, toggleTheme } = useTheme();
   const [search, setSearch] = useState('');
   const [submittingQuick, setSubmittingQuick] = useState(false);
@@ -48,6 +50,7 @@ export function CommandMenu() {
   // Wire all global macOS / Windows keyboard shortcuts (isolated while Privacy Shield is locked)
   useGlobalShortcuts({
     isLocked,
+    isPlanningActive: isPlanningOpen || isPlanningIntroActive,
     isPaletteOpen: open,
     onTogglePalette: toggle,
     onClosePalette: () => setOpen(false),

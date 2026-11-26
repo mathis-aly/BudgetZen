@@ -498,3 +498,28 @@ export interface CategoryDistributionPoint {
   monthlyLimit: number;
   status: AlertStatus;
 }
+
+// ============================================================================
+// Module: Planification (Canevas Éditorial)
+// ============================================================================
+export type PlanningNodeType = 'IDEA' | 'RESOURCE' | 'GOAL';
+export type PlanningResourceKind = 'YOUTUBE' | 'ARTICLE';
+
+export interface PlanningNodeDTO {
+  id: string;
+  type: PlanningNodeType;
+  title: string;
+  content: string | null;
+  url: string | null;
+  resourceKind: PlanningResourceKind | null;
+  positionX: number;
+  positionY: number;
+  createdAt: string;
+}
+
+export interface PlanningEdgeDTO {
+  id: string;
+  sourceId: string;
+  targetId: string;
+  label: string | null;
+}

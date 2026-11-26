@@ -6,6 +6,8 @@ import type {
   CustomIndexType,
   IndexComponentSourceType,
   MonthlyReportDTO,
+  PlanningEdgeDTO,
+  PlanningNodeDTO,
   RecurringPaymentDTO,
   ReserveExpenseDTO,
   TaxDeductionMode,
@@ -33,6 +35,8 @@ export interface AppBootstrapData {
   taxProfile: TaxProfileDTO;
   taxEntries: TaxEntryDTO[];
   customIndices: CustomIndexDTO[];
+  planningNodes?: PlanningNodeDTO[];
+  planningEdges?: PlanningEdgeDTO[];
 }
 
 const VALID_WEALTH_CATEGORIES: WealthAssetCategory[] = [

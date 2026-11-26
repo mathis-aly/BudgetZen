@@ -83,3 +83,44 @@ html[data-intro-seen="1"] #shield-preloader {
   background: var(--border-hairline);
   border-radius: 2px;
 }
+
+/* Swiss Editorial React Flow Planning Canvas overrides */
+.react-flow__controls {
+  box-shadow: none !important;
+  border: 1px solid var(--border-hairline) !important;
+  border-radius: 2px !important;
+  overflow: hidden;
+  background: var(--bg-surface) !important;
+}
+
+.react-flow__controls-button {
+  background: var(--bg-surface) !important;
+  color: var(--text-primary) !important;
+  border-bottom: 1px solid var(--border-hairline) !important;
+  width: 28px !important;
+  height: 28px !important;
+}
+
+.react-flow__controls-button:last-child {
+  border-bottom: none !important;
+}
+
+.react-flow__controls-button:hover {
+  background: var(--bg-subtle) !important;
+}
+
+.react-flow__controls-button svg {
+  fill: currentColor !important;
+}
+
+.react-flow__minimap {
+  background: var(--bg-surface) !important;
+  border: 1px solid var(--border-hairline) !important;
+  border-radius: 2px !important;
+  box-shadow: none !important;
+}
+
+.react-flow__edge.selected .react-flow__edge-path {
+  stroke: var(--semantic-warning) !important;
+  stroke-width: 2 !important;
+}
