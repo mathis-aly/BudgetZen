@@ -44,6 +44,7 @@ import {
   SectionHeader,
 } from '@/components/ui';
 import { cn } from '@/lib/cn';
+import { useSandbox } from '@/features/dev-console';
 import { closeMonthAction } from './actions';
 
 const STEPS = [
@@ -104,6 +105,7 @@ export function MonthlyCloseWizard({
   onClosed: (message: string) => Promise<void>;
   onNotify?: (message: string) => void;
 }) {
+  const { isSandbox, runSandboxCloseMonth } = useSandbox();
   const currency = accountSettings.currency || 'EUR';
 
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
@@ -254,7 +256,8 @@ export function MonthlyCloseWizard({
           ? `Surplus (${formatCurrency(summary.surplusAvailable, currency)}) : ${allocationLabel}.`
           : null);
 
-      const res = await closeMonthAction({
+      const executeClose = isSandbox ? runSandboxCloseMonth : closeMonthAction;
+      const res = await executeClose({
         month: selectedMonthKey,
         totalIncome: summary.totalIncome,
         totalExpenses: summary.totalExpenses,

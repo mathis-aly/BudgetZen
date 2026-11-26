@@ -52,7 +52,8 @@ export type NavTab =
   | 'taxes'
   | 'custom-indices'
   | 'analytics'
-  | 'settings';
+  | 'settings'
+  | 'projects';
 
 export function DashboardView({
   settings,
@@ -120,7 +121,7 @@ export function DashboardView({
     <EditorialStagger className="space-y-6">
       {/* 1. HERO LEDGER CARD: Editorial Serif Reste à Vivre + Swiss Grid Breakdown + Gauge */}
       <EditorialBlock>
-        <Card padded={false} className="overflow-hidden">
+        <Card padded={false} className="overflow-hidden" data-tour="sandbox-reste-reserve">
           {/* Top Hero Row */}
           <div className="p-5 sm:p-6 flex items-start justify-between gap-4">
             <div>

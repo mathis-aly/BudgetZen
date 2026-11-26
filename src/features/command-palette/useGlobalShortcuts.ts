@@ -21,6 +21,8 @@ function isEditableElement(target: EventTarget | null): boolean {
 }
 
 export interface GlobalShortcutsOptions {
+  isLocked?: boolean;
+  isPlanningActive?: boolean;
   isPaletteOpen: boolean;
   onTogglePalette: () => void;
   onClosePalette: () => void;
@@ -34,8 +36,11 @@ export interface GlobalShortcutsOptions {
  * - ⌘+E / Ctrl+E (and plain `N` when no text field is focused) : Open Quick Add Transaction modal
  * - ⌘+1..⌘+6 / Ctrl+1..6 : Navigate directly to primary views
  * - ⌘+Enter / Ctrl+Enter : Submit the active form inside any currently open modal dialog
+ * Automatically isolated whenever `isLocked === true` (Privacy Shield active).
  */
 export function useGlobalShortcuts({
+  isLocked = false,
+  isPlanningActive = false,
   isPaletteOpen,
   onTogglePalette,
   onClosePalette,
@@ -43,6 +48,8 @@ export function useGlobalShortcuts({
   onNavigate,
 }: GlobalShortcutsOptions) {
   useEffect(() => {
+    if (isLocked) return;
+
     const handleKeyDown = (e: KeyboardEvent) => {
       const mod = e.metaKey || e.ctrlKey;
       const keyLower = e.key.toLowerCase();
@@ -78,6 +85,7 @@ export function useGlobalShortcuts({
 
       // 3. ⌘ + E (or Ctrl + E) — Open Quick Add modal immediately
       if (mod && !e.altKey && !e.shiftKey && keyLower === 'e') {
+        if (isPlanningActive) return;
         e.preventDefault();
         onClosePalette();
         onOpenQuickAdd();
@@ -86,6 +94,7 @@ export function useGlobalShortcuts({
 
       // 4. ⌘ + 1..6 (or Ctrl + 1..6) — Instant navigation to primary views
       if (mod && !e.altKey && !e.shiftKey && e.key in SHORTCUT_NAV_MAP) {
+        if (isPlanningActive) return;
         e.preventDefault();
         onClosePalette();
         onNavigate(SHORTCUT_NAV_MAP[e.key]);
@@ -99,8 +108,8 @@ export function useGlobalShortcuts({
         return;
       }
 
-      // 6. Plain single-key shortcuts (`N` or `+`) — strictly ignored when an input/textarea/modal/palette is active
-      if (mod || e.altKey || isPaletteOpen) return;
+      // 6. Plain single-key shortcuts (`N` or `+`) — strictly ignored when an input/textarea/modal/palette/planning is active
+      if (isPlanningActive || mod || e.altKey || isPaletteOpen) return;
       if (isEditableElement(e.target)) return;
       if (document.querySelector('[role="dialog"]')) return;
 
@@ -112,5 +121,13 @@ export function useGlobalShortcuts({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isPaletteOpen, onTogglePalette, onClosePalette, onOpenQuickAdd, onNavigate]);
+  }, [
+    isLocked,
+    isPlanningActive,
+    isPaletteOpen,
+    onTogglePalette,
+    onClosePalette,
+    onOpenQuickAdd,
+    onNavigate,
+  ]);
 }

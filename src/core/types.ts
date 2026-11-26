@@ -498,3 +498,68 @@ export interface CategoryDistributionPoint {
   monthlyLimit: number;
   status: AlertStatus;
 }
+
+// ============================================================================
+// Module: Planification (Canevas Éditorial)
+// ============================================================================
+export type PlanningNodeType = 'IDEA' | 'RESOURCE' | 'GOAL';
+export type PlanningResourceKind = 'YOUTUBE' | 'ARTICLE';
+
+export interface PlanningNodeDTO {
+  id: string;
+  type: PlanningNodeType;
+  title: string;
+  content: string | null;
+  url: string | null;
+  resourceKind: PlanningResourceKind | null;
+  positionX: number;
+  positionY: number;
+  createdAt: string;
+}
+
+export interface PlanningEdgeDTO {
+  id: string;
+  sourceId: string;
+  targetId: string;
+  label: string | null;
+}
+
+// ============================================================================
+// Module: Projets & Financements
+// ============================================================================
+export type FinancialProjectCategory = 'REAL_ESTATE' | 'VEHICLE' | 'OTHER';
+
+export interface FinancialProjectInput {
+  currentPrice: number;
+  extraFeesPercent: number;
+  annualPriceGrowthPercent: number;
+  targetMonths: number;
+  savedAmount: number;
+  useLoan: boolean;
+  downPaymentPercent: number;
+  loanInterestRate: number;
+  loanDurationYears: number;
+}
+
+export interface FinancialProjectDTO extends FinancialProjectInput {
+  id: string;
+  name: string;
+  category: FinancialProjectCategory;
+  createdAt: string;
+}
+
+export interface FinancialProjectMetrics {
+  projectedPrice: number;
+  priceGrowthDelta: number;
+  extraFeesAmount: number;
+  totalProjectCost: number;
+  requiredSavingsTarget: number;
+  remainingSavingsNeeded: number;
+  progressPercent: number;
+  requiredMonthlySavings: number;
+  loanPrincipal: number;
+  monthlyLoanPayment: number;
+  totalLoanInterestCost: number;
+  debtToIncomeRatio: number;
+  isHighDebtRisk: boolean;
+}

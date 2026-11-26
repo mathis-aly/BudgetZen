@@ -21,6 +21,7 @@ import {
   parseTransactionsCSV,
 } from '@/core';
 import { importTransactionsAction } from '@/features/transactions/actions';
+import { useSandbox } from '@/features/dev-console';
 import { cn } from '@/lib/cn';
 import { Badge } from './Badge';
 import { Button } from './Button';
@@ -41,6 +42,7 @@ export function ImportCsvModal({
   currency?: string;
   onImported: (message: string) => Promise<void>;
 }) {
+  const { isSandbox, runSandboxImportTransactions } = useSandbox();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [step, setStep] = useState<1 | 2>(1);
   const [fileName, setFileName] = useState<string>('');
@@ -128,16 +130,17 @@ export function ImportCsvModal({
     setSubmitting(true);
     setError(null);
     try {
-      const res = await importTransactionsAction(
-        rowsToImport.map((r) => ({
-          dateIso: r.dateIso!,
-          type: r.type,
-          categoryName: r.categoryName,
-          categoryId: r.categoryId,
-          amount: r.amount!,
-          note: r.note,
-        }))
-      );
+      const payload = rowsToImport.map((r) => ({
+        dateIso: r.dateIso!,
+        type: r.type,
+        categoryName: r.categoryName,
+        categoryId: r.categoryId,
+        amount: r.amount!,
+        note: r.note,
+      }));
+      const res = isSandbox
+        ? await runSandboxImportTransactions(payload)
+        : await importTransactionsAction(payload);
 
       if (!res.ok) {
         throw new Error(res.error || "Erreur lors de l'importation.");

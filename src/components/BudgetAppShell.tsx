@@ -11,6 +11,7 @@ import {
   Landmark,
   LayoutDashboard,
   ListOrdered,
+  Lock,
   Plus,
   Scale,
   Search,
@@ -26,8 +27,6 @@ import {
   calculateCashErosion,
   computeBudgetSummary,
   computeCategoryBudgetStatuses,
-  computeCategoryDistribution,
-  computeMonthlyEvolution,
   computePersonalInflation,
   filterTransactionsByMonth,
   formatCurrency,
@@ -39,7 +38,13 @@ import {
   shiftMonthKey,
 } from '@/core';
 import type { AppBootstrapData } from '@/lib/data';
-import { Button, ThemeToggle, ToastContainer, ToastMessage } from '@/components/ui';
+import {
+  Button,
+  ThemeToggle,
+  ToastContainer,
+  ToastMessage,
+  usePrivacyShield,
+} from '@/components/ui';
 import {
   BalanceEditModal,
   DashboardView,
@@ -55,8 +60,11 @@ import { MonthlyCloseWizard } from '@/features/monthly-close';
 import { TaxesView } from '@/features/taxes';
 import { CustomIndicesView } from '@/features/custom-indices';
 import { AnalyticsView } from '@/features/analytics';
+import { useEffect as useSandboxSyncEffect } from 'react';
 import { SettingsView } from '@/features/settings';
+import { ProjectsView } from '@/features/projects';
 import { useCommandPalette } from '@/features/command-palette';
+import { useSandbox } from '@/features/dev-console';
 import { cn } from '@/lib/cn';
 
 const PRIMARY_NAV_ITEMS: Array<{
@@ -74,8 +82,24 @@ const PRIMARY_NAV_ITEMS: Array<{
 ];
 
 export function BudgetAppShell({ initialData }: { initialData: AppBootstrapData }) {
-  const [data, setData] = useState<AppBootstrapData>(initialData);
+  const [realData, setRealData] = useState<AppBootstrapData>(initialData);
   const [activeTab, setActiveTab] = useState<NavTab>('dashboard');
+  const {
+    isSandbox,
+    sandboxData,
+    syncRealData,
+    registerShellNav,
+  } = useSandbox();
+
+  useSandboxSyncEffect(() => {
+    syncRealData(realData);
+  }, [realData, syncRealData]);
+
+  useSandboxSyncEffect(() => {
+    registerShellNav(setActiveTab);
+  }, [registerShellNav]);
+
+  const data = isSandbox && sandboxData ? sandboxData : realData;
   const [selectedMonthKey, setSelectedMonthKey] = useState<string>(() =>
     getMonthKey(new Date())
   );
@@ -85,6 +109,7 @@ export function BudgetAppShell({ initialData }: { initialData: AppBootstrapData 
   const [exceptionalModalOpen, setExceptionalModalOpen] = useState(false);
   const [toast, setToast] = useState<ToastMessage | null>(null);
   const { registerBridge, setOpen: setPaletteOpen } = useCommandPalette();
+  const { lock: lockPrivacyShield } = usePrivacyShield();
 
   const showToast = useCallback((text: string, tone: 'success' | 'error' = 'success') => {
     const id = Date.now();
@@ -96,18 +121,24 @@ export function BudgetAppShell({ initialData }: { initialData: AppBootstrapData 
 
   const refreshData = useCallback(
     async (toastMessage?: string) => {
+      if (isSandbox) {
+        if (toastMessage) {
+          showToast(toastMessage, 'success');
+        }
+        return;
+      }
       const res = await fetch('/api/bootstrap', { cache: 'no-store' });
       if (!res.ok) {
         showToast('Impossible d’actualiser les données', 'error');
         return;
       }
       const next: AppBootstrapData = await res.json();
-      setData(next);
+      setRealData(next);
       if (toastMessage) {
         showToast(toastMessage, 'success');
       }
     },
-    [showToast]
+    [isSandbox, showToast]
   );
 
   const openQuickAdd = useCallback(() => {
@@ -194,21 +225,6 @@ export function BudgetAppShell({ initialData }: { initialData: AppBootstrapData 
 
   const monthTransactions = useMemo(
     () => filterTransactionsByMonth(data.transactions, selectedMonthKey),
-    [data.transactions, selectedMonthKey]
-  );
-
-  const distribution = useMemo(
-    () =>
-      computeCategoryDistribution({
-        categories: data.categories,
-        transactions: data.transactions,
-        monthKey: selectedMonthKey,
-      }),
-    [data.categories, data.transactions, selectedMonthKey]
-  );
-
-  const monthlyEvolution = useMemo(
-    () => computeMonthlyEvolution(data.transactions, selectedMonthKey, 6),
     [data.transactions, selectedMonthKey]
   );
 
@@ -302,11 +318,21 @@ export function BudgetAppShell({ initialData }: { initialData: AppBootstrapData 
   };
 
   return (
-    <div className="min-h-dvh flex flex-col bg-[#F7F6F2] dark:bg-[#111110]">
+    <div
+      className={cn(
+        'min-h-dvh flex flex-col bg-[#F7F6F2] dark:bg-[#111110]',
+        isSandbox && 'pt-7'
+      )}
+    >
       <ToastContainer toast={toast} />
 
       {/* Swiss Editorial Masthead Header — Matte Surface, Sharp 1px Rules, Zero Blur */}
-      <header className="sticky top-0 z-30 bg-[#F7F6F2] dark:bg-[#111110] border-b border-[#E2E0D8] dark:border-[#2A2A27] pt-[env(safe-area-inset-top)]">
+      <header
+        className={cn(
+          'sticky z-30 bg-[#F7F6F2] dark:bg-[#111110] border-b border-[#E2E0D8] dark:border-[#2A2A27] pt-[env(safe-area-inset-top)]',
+          isSandbox ? 'top-7' : 'top-0'
+        )}
+      >
         <div className="max-w-6xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between gap-3">
           {/* Editorial Brand Monogram */}
           <button
@@ -634,9 +660,8 @@ export function BudgetAppShell({ initialData }: { initialData: AppBootstrapData 
 
         {activeTab === 'analytics' && (
           <AnalyticsView
-            selectedMonthKey={selectedMonthKey}
-            distribution={distribution}
-            monthlyEvolution={monthlyEvolution}
+            transactions={data.transactions}
+            categories={data.categories}
             tips={optimizationTips}
             currency={data.settings.currency}
             onApplyRebalance={handleApplyRebalance}
@@ -656,12 +681,61 @@ export function BudgetAppShell({ initialData }: { initialData: AppBootstrapData 
             onNotify={(msg) => showToast(msg, 'success')}
           />
         )}
+
+        {activeTab === 'projects' && (
+          <ProjectsView
+            projects={data.financialProjects}
+            monthlyIncome={
+              summary.monthIncome > 0
+                ? summary.monthIncome
+                : data.settings.monthlyIncomeTarget
+            }
+            resteAVivre={summary.resteAVivre}
+            currency={data.settings.currency}
+            onChanged={refreshData}
+            onBackToDashboard={() => setActiveTab('dashboard')}
+          />
+        )}
       </main>
+
+      {/* Discrete Swiss Editorial Footer with Privacy Shield Shortcut Hint */}
+      <footer className="hidden md:block border-t border-[#E2E0D8] dark:border-[#2A2A27] bg-[#FCFBF9] dark:bg-[#141413]">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 h-10 flex items-center justify-between gap-4 font-mono text-[10px] text-[#5C5B57] dark:text-[#9A9890]">
+          <span className="uppercase tracking-[0.14em]">
+            BUDGETZEN · ML · ÉDITION PRIVÉE
+          </span>
+          <div className="flex items-center gap-4">
+            <button
+              type="button"
+              onClick={() => setPaletteOpen(true)}
+              className="hover:text-[#141413] dark:hover:text-[#F2F0E8] transition-colors inline-flex items-center gap-1.5"
+            >
+              <span>Command Palette</span>
+              <kbd className="px-1 py-0.5 rounded-sm border border-[#E2E0D8] dark:border-[#2A2A27] bg-[#FFFFFF] dark:bg-[#181816] text-[9px] font-semibold">
+                ⌘K
+              </kbd>
+            </button>
+            <button
+              type="button"
+              onClick={lockPrivacyShield}
+              title="Verrouiller instantanément l'écran (double appui sur Échap)"
+              className="hover:text-[#141413] dark:hover:text-[#F2F0E8] transition-colors inline-flex items-center gap-1.5"
+            >
+              <Lock className="h-3 w-3" />
+              <span>Verrouiller l’écran</span>
+              <kbd className="px-1 py-0.5 rounded-sm border border-[#E2E0D8] dark:border-[#2A2A27] bg-[#FFFFFF] dark:bg-[#181816] text-[9px] font-semibold">
+                Échap ×2
+              </kbd>
+            </button>
+          </div>
+        </div>
+      </footer>
 
       {/* Crisp Editorial Action Button (+) — Matte Ink, Zero Glow, Micro-Rounded */}
       <button
         type="button"
         onClick={openQuickAdd}
+        data-tour="sandbox-income-settings"
         aria-label="Ajouter une dépense ou un revenu"
         title="Saisie rapide (⌘E ou N)"
         className="fixed right-5 bottom-[calc(4.75rem+env(safe-area-inset-bottom))] md:bottom-7 md:right-7 z-40 h-12 w-12 rounded-md bg-[#141413] hover:bg-[#2A2A27] dark:bg-[#F2F0E8] dark:hover:bg-[#E2E0D8] text-[#F7F6F2] dark:text-[#111110] border border-[#141413] dark:border-[#F2F0E8] flex items-center justify-center active:translate-y-[1px] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#141413]"

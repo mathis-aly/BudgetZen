@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   AlertTriangle,
   ArrowLeftRight,
@@ -23,45 +23,71 @@ import {
   YAxis,
 } from 'recharts';
 import {
-  CategoryDistributionPoint,
-  MonthlyEvolutionPoint,
+  AnalyticsTimeframe,
+  CategoryDTO,
   OptimizationTip,
   RebalanceSuggestion,
+  TransactionDTO,
+  aggregateSeriesByTimeframe,
   formatCurrency,
-  formatMonthLabel,
   formatPercent,
 } from '@/core';
 import {
-  AlertStatusBadge,
   Badge,
   Button,
   Card,
   CategoryIcon,
+  RollingNumber,
   SectionHeader,
+  TimeframeSelector,
   useTheme,
 } from '@/components/ui';
 import { cn } from '@/lib/cn';
 
+function formatDeltaBadge(val: number | null): string | null {
+  if (val === null) return null;
+  return `${val > 0 ? '+' : ''}${formatPercent(val, 1)}`;
+}
+
 export function AnalyticsView({
-  selectedMonthKey,
-  distribution,
-  monthlyEvolution,
+  transactions,
+  categories,
   tips,
   currency = 'EUR',
   onApplyRebalance,
 }: {
-  selectedMonthKey: string;
-  distribution: CategoryDistributionPoint[];
-  monthlyEvolution: MonthlyEvolutionPoint[];
+  transactions: TransactionDTO[];
+  categories: CategoryDTO[];
   tips: OptimizationTip[];
   currency?: string;
   onApplyRebalance: (rebalance: RebalanceSuggestion) => Promise<void>;
 }) {
   const { theme } = useTheme();
+  const isDark = theme === 'dark';
+
+  const [timeframe, setTimeframe] = useState<AnalyticsTimeframe>('1Y');
   const [rebalancingId, setRebalancingId] = useState<string | null>(null);
 
-  const totalMonthSpent = distribution.reduce((sum, d) => sum + d.amount, 0);
-  const isDark = theme === 'dark';
+  const analytics = useMemo(
+    () =>
+      aggregateSeriesByTimeframe(transactions, timeframe, {
+        categories,
+        referenceDate: new Date(),
+      }),
+    [transactions, timeframe, categories]
+  );
+
+  const historyNotice = useMemo(() => {
+    if (!analytics.isDataTruncatedToHistory || !analytics.earliestTransactionDate) {
+      return null;
+    }
+    const formattedStart = new Intl.DateTimeFormat('fr-FR', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+    }).format(new Date(analytics.earliestTransactionDate));
+    return `Note : l’historique enregistré débute le ${formattedStart} — seules les périodes disponibles sont affichées.`;
+  }, [analytics.isDataTruncatedToHistory, analytics.earliestTransactionDate]);
 
   const handleApplyRebalance = async (tipId: string, rebalance: RebalanceSuggestion) => {
     setRebalancingId(tipId);
@@ -75,32 +101,393 @@ export function AnalyticsView({
   const getTipIcon = (tip: OptimizationTip) => {
     switch (tip.type) {
       case 'rebalance':
-        return <ArrowLeftRight className="h-4 w-4 text-[#FF3B30] dark:text-[#FF453A]" />;
+        return <ArrowLeftRight className="h-4 w-4 text-[#B91C1C] dark:text-[#EF4444]" />;
       case 'surge':
-        return <TrendingUp className="h-4 w-4 text-[#FF9500] dark:text-[#FF9F0A]" />;
+        return <TrendingUp className="h-4 w-4 text-[#B45309] dark:text-[#F59E0B]" />;
       case 'daily_budget':
-        return <Gauge className="h-4 w-4 text-[#FF9500] dark:text-[#FF9F0A]" />;
+        return <Gauge className="h-4 w-4 text-[#B45309] dark:text-[#F59E0B]" />;
       case 'savings':
-        return <CheckCircle2 className="h-4 w-4 text-[#34C759] dark:text-[#30D158]" />;
+        return <CheckCircle2 className="h-4 w-4 text-[#15803D] dark:text-[#22C55E]" />;
       case 'cash_erosion':
-        return <Flame className="h-4 w-4 text-[#FF9500] dark:text-[#FF9F0A]" />;
+        return <Flame className="h-4 w-4 text-[#B45309] dark:text-[#F59E0B]" />;
       default:
-        return <AlertTriangle className="h-4 w-4 text-[#FF3B30] dark:text-[#FF453A]" />;
+        return <AlertTriangle className="h-4 w-4 text-[#B91C1C] dark:text-[#EF4444]" />;
     }
   };
+
+  const isShortHorizon =
+    timeframe === 'DAY' || timeframe === 'WEEK' || timeframe === 'MONTH';
+  const incomeDelta = formatDeltaBadge(
+    analytics.comparison?.incomeChangePercent ?? null
+  );
+  const expenseDelta = formatDeltaBadge(
+    analytics.comparison?.expensesChangePercent ?? null
+  );
+  const savingsDelta = formatDeltaBadge(
+    analytics.comparison?.netSavingsChangePercent ?? null
+  );
 
   return (
     <div className="space-y-6">
       <SectionHeader
         title="Analyse & Optimisation"
-        subtitle={`Recommandations intelligentes et tendances · ${formatMonthLabel(selectedMonthKey)}`}
+        subtitle="Agrégation temporelle multi-horizons, ventilation sectorielle et recommandations"
       />
 
-      {/* 1. OPTIMIZATION ENGINE CONTEXTUAL CARDS */}
+      {/* 1. SWISS EDITORIAL MULTI-HORIZON TIMEFRAME SELECTOR */}
+      <TimeframeSelector
+        value={timeframe}
+        onChange={setTimeframe}
+        rangeLabel={analytics.rangeLabel}
+        granularityLabel={analytics.granularityLabel}
+        historyNotice={historyNotice}
+      />
+
+      {/* 2. COMPARATIVE KPI SYNTHESIS STRIP (4 HAIRLINE CELLS) */}
+      <Card padded={false} className="overflow-hidden">
+        <div className="grid grid-cols-2 lg:grid-cols-4 divide-y lg:divide-y-0 lg:divide-x divide-[#E2E0D8] dark:divide-[#2A2A27]">
+          {/* Entrées */}
+          <div className="p-4">
+            <div className="flex items-center justify-between gap-2">
+              <p className="editorial-kicker">Entrées</p>
+              {incomeDelta && (
+                <Badge
+                  tone={
+                    (analytics.comparison?.incomeChangePercent ?? 0) >= 0
+                      ? 'green'
+                      : 'red'
+                  }
+                >
+                  {incomeDelta}
+                </Badge>
+              )}
+            </div>
+            <p className="font-mono text-xl font-semibold tabular-nums text-[#15803D] dark:text-[#22C55E] mt-1.5">
+              <RollingNumber value={analytics.totalIncome} currency={currency} />
+            </p>
+            <p className="font-mono text-[10px] text-[#5C5B57] dark:text-[#9A9890] mt-0.5">
+              {analytics.comparison?.hasPreviousData
+                ? `Préc. ${formatCurrency(analytics.comparison.previousIncome, currency)}`
+                : `${analytics.transactionCount} opération(s)`}
+            </p>
+          </div>
+
+          {/* Sorties */}
+          <div className="p-4">
+            <div className="flex items-center justify-between gap-2">
+              <p className="editorial-kicker">Sorties</p>
+              {expenseDelta && (
+                <Badge
+                  tone={
+                    (analytics.comparison?.expensesChangePercent ?? 0) <= 0
+                      ? 'green'
+                      : 'orange'
+                  }
+                >
+                  {expenseDelta}
+                </Badge>
+              )}
+            </div>
+            <p className="font-mono text-xl font-semibold tabular-nums text-[#141413] dark:text-[#F2F0E8] mt-1.5">
+              <RollingNumber value={analytics.totalExpenses} currency={currency} />
+            </p>
+            <p className="font-mono text-[10px] text-[#5C5B57] dark:text-[#9A9890] mt-0.5">
+              {analytics.comparison?.hasPreviousData
+                ? `Préc. ${formatCurrency(analytics.comparison.previousExpenses, currency)}`
+                : `${analytics.categoryDistribution.length} catégorie(s)`}
+            </p>
+          </div>
+
+          {/* Épargne nette & Taux */}
+          <div className="p-4">
+            <div className="flex items-center justify-between gap-2">
+              <p className="editorial-kicker">Épargne nette</p>
+              {savingsDelta && (
+                <Badge
+                  tone={
+                    (analytics.comparison?.netSavingsChangePercent ?? 0) >= 0
+                      ? 'green'
+                      : 'red'
+                  }
+                >
+                  {savingsDelta}
+                </Badge>
+              )}
+            </div>
+            <p
+              className={cn(
+                'font-mono text-xl font-semibold tabular-nums mt-1.5',
+                analytics.netSavings >= 0
+                  ? 'text-[#15803D] dark:text-[#22C55E]'
+                  : 'text-[#B91C1C] dark:text-[#EF4444]'
+              )}
+            >
+              <RollingNumber value={analytics.netSavings} currency={currency} />
+            </p>
+            <p className="font-mono text-[10px] text-[#5C5B57] dark:text-[#9A9890] mt-0.5">
+              Taux d’épargne moyen :{' '}
+              <strong className="text-[#141413] dark:text-[#F2F0E8]">
+                {formatPercent(analytics.savingsRatePercent, 1)}
+              </strong>
+            </p>
+          </div>
+
+          {/* Dépense moyenne */}
+          <div className="p-4">
+            <p className="editorial-kicker">
+              {isShortHorizon ? 'Dépense moy. / jour' : 'Dépense moy. / mois'}
+            </p>
+            <p className="font-mono text-xl font-semibold tabular-nums text-[#141413] dark:text-[#F2F0E8] mt-1.5">
+              <RollingNumber
+                value={
+                  isShortHorizon
+                    ? analytics.averageDailyExpense
+                    : analytics.averageMonthlyExpense
+                }
+                currency={currency}
+              />
+            </p>
+            <p className="font-mono text-[10px] text-[#5C5B57] dark:text-[#9A9890] mt-0.5 tabular-nums">
+              {isShortHorizon
+                ? `Sur ${analytics.activeDaysCount} jour${analytics.activeDaysCount > 1 ? 's' : ''}`
+                : `${formatCurrency(analytics.averageDailyExpense, currency)} / jour`}
+            </p>
+          </div>
+        </div>
+      </Card>
+
+      {/* 3. CHARTS GRID (EVOLUTION + CATEGORY DISTRIBUTION) */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        {/* Evolution BarChart adapting automatically to granularity */}
+        <Card className="p-4 sm:p-5 space-y-4 flex flex-col justify-between">
+          <div className="flex items-start justify-between gap-2">
+            <div>
+              <h3 className="font-serif text-[18px] font-medium text-[#141413] dark:text-[#F2F0E8]">
+                Revenus vs Dépenses
+              </h3>
+              <p className="font-mono text-[11px] text-[#5C5B57] dark:text-[#9A9890]">
+                {analytics.granularityLabel} · {analytics.series.length} période
+                {analytics.series.length > 1 ? 's' : ''}
+              </p>
+            </div>
+            <div className="flex items-center gap-3 font-mono text-[10px] uppercase tracking-[0.06em] text-[#5C5B57] dark:text-[#9A9890]">
+              <span className="inline-flex items-center gap-1.5">
+                <span className="h-2 w-2 rounded-[1px] bg-[#15803D] dark:bg-[#22C55E]" />
+                Entrées
+              </span>
+              <span className="inline-flex items-center gap-1.5">
+                <span className="h-2 w-2 rounded-[1px] bg-[#141413] dark:bg-[#F2F0E8]" />
+                Sorties
+              </span>
+            </div>
+          </div>
+
+          {analytics.series.length === 0 ? (
+            <div className="h-64 flex items-center justify-center border border-dashed border-[#E2E0D8] dark:border-[#2A2A27] rounded-md text-xs text-[#5C5B57] dark:text-[#9A9890]">
+              Aucune opération enregistrée sur cette période.
+            </div>
+          ) : (
+            <div className="h-64 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart
+                  data={analytics.series}
+                  margin={{ top: 8, right: 4, left: -14, bottom: 0 }}
+                  barGap={3}
+                >
+                  <CartesianGrid
+                    strokeDasharray="2 3"
+                    vertical={false}
+                    stroke={isDark ? '#2A2A27' : '#E2E0D8'}
+                  />
+                  <XAxis
+                    dataKey="label"
+                    axisLine={{ stroke: isDark ? '#2A2A27' : '#E2E0D8' }}
+                    tickLine={false}
+                    interval="preserveStartEnd"
+                    minTickGap={16}
+                    tick={{
+                      fontSize: 10,
+                      fontFamily: 'var(--font-mono)',
+                      fill: isDark ? '#9A9890' : '#5C5B57',
+                    }}
+                  />
+                  <YAxis
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{
+                      fontSize: 10,
+                      fontFamily: 'var(--font-mono)',
+                      fill: isDark ? '#9A9890' : '#5C5B57',
+                    }}
+                    tickFormatter={(v: number) =>
+                      v >= 1000 ? `${(v / 1000).toFixed(1)}k€` : `${Math.round(v)}€`
+                    }
+                  />
+                  <Tooltip
+                    cursor={{
+                      fill: isDark
+                        ? 'rgba(242,240,232,0.04)'
+                        : 'rgba(20,20,19,0.03)',
+                    }}
+                    formatter={(value: number, name: string) => [
+                      formatCurrency(value, currency),
+                      name === 'income' ? 'Entrées' : 'Sorties',
+                    ]}
+                    contentStyle={{
+                      borderRadius: '4px',
+                      border: isDark ? '1px solid #2A2A27' : '1px solid #E2E0D8',
+                      backgroundColor: isDark ? '#181816' : '#FFFFFF',
+                      color: isDark ? '#F2F0E8' : '#141413',
+                      boxShadow: 'none',
+                      fontFamily: 'var(--font-mono)',
+                      fontSize: '11px',
+                      fontWeight: 600,
+                    }}
+                  />
+                  <Bar
+                    dataKey="income"
+                    name="income"
+                    fill={isDark ? '#22C55E' : '#15803D'}
+                    radius={[2, 2, 0, 0]}
+                    maxBarSize={22}
+                  />
+                  <Bar
+                    dataKey="expenses"
+                    name="expenses"
+                    fill={isDark ? '#F2F0E8' : '#141413'}
+                    radius={[2, 2, 0, 0]}
+                    maxBarSize={22}
+                  />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+
+          {/* Compact Period Net Flow Strip (last up to 6 buckets) */}
+          {analytics.series.length > 0 && (
+            <div className="pt-3 border-t border-[#E2E0D8] dark:border-[#2A2A27]">
+              <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5">
+                {analytics.series.slice(-6).map((pt) => (
+                  <div
+                    key={pt.bucketKey}
+                    className="rounded-sm border border-[#E2E0D8] dark:border-[#2A2A27] bg-[#FCFBF9] dark:bg-[#141413] px-2 py-1.5 text-center"
+                  >
+                    <p className="font-mono text-[9px] text-[#5C5B57] dark:text-[#9A9890] truncate">
+                      {pt.label}
+                    </p>
+                    <p
+                      className={cn(
+                        'font-mono text-[10px] font-semibold tabular-nums mt-0.5',
+                        pt.savings >= 0
+                          ? 'text-[#15803D] dark:text-[#22C55E]'
+                          : 'text-[#B91C1C] dark:text-[#EF4444]'
+                      )}
+                    >
+                      {formatCurrency(pt.savings, currency, {
+                        compact: true,
+                        showSign: true,
+                      })}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </Card>
+
+        {/* Category Distribution Donut recalculated over the selected timeframe */}
+        <Card className="p-4 sm:p-5 space-y-4">
+          <div>
+            <h3 className="font-serif text-[18px] font-medium text-[#141413] dark:text-[#F2F0E8]">
+              Répartition des dépenses
+            </h3>
+            <p className="font-mono text-[11px] text-[#5C5B57] dark:text-[#9A9890]">
+              Ventilation sur la période · {analytics.rangeLabel}
+            </p>
+          </div>
+
+          {analytics.categoryDistribution.length === 0 ? (
+            <div className="h-56 flex items-center justify-center border border-dashed border-[#E2E0D8] dark:border-[#2A2A27] rounded-md text-xs text-[#5C5B57] dark:text-[#9A9890]">
+              Aucune dépense enregistrée sur cet horizon.
+            </div>
+          ) : (
+            <>
+              <div className="relative h-56 w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={analytics.categoryDistribution}
+                      dataKey="amount"
+                      nameKey="name"
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={62}
+                      outerRadius={86}
+                      paddingAngle={2}
+                      stroke="none"
+                    >
+                      {analytics.categoryDistribution.map((entry) => (
+                        <Cell key={entry.categoryId} fill={entry.color} />
+                      ))}
+                    </Pie>
+                    <Tooltip
+                      formatter={(value: number) => formatCurrency(value, currency)}
+                      contentStyle={{
+                        borderRadius: '4px',
+                        border: isDark ? '1px solid #2A2A27' : '1px solid #E2E0D8',
+                        backgroundColor: isDark ? '#181816' : '#FFFFFF',
+                        color: isDark ? '#F2F0E8' : '#141413',
+                        boxShadow: 'none',
+                        fontFamily: 'var(--font-mono)',
+                        fontSize: '11px',
+                        fontWeight: 600,
+                      }}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+
+                <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                  <span className="editorial-kicker">Total</span>
+                  <span className="font-mono text-base font-bold tabular-nums text-[#141413] dark:text-[#F2F0E8] mt-0.5">
+                    {formatCurrency(analytics.totalExpenses, currency)}
+                  </span>
+                </div>
+              </div>
+
+              <div className="divide-y divide-[#E2E0D8] dark:divide-[#2A2A27]">
+                {analytics.categoryDistribution.map((item) => (
+                  <div
+                    key={item.categoryId}
+                    className="flex items-center justify-between gap-2 py-2.5"
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <CategoryIcon icon={item.icon} color={item.color} size="sm" />
+                      <div className="min-w-0">
+                        <p className="text-xs font-semibold text-[#141413] dark:text-[#F2F0E8] truncate">
+                          {item.name}
+                        </p>
+                        <p className="font-mono text-[10px] text-[#5C5B57] dark:text-[#9A9890] tabular-nums">
+                          {formatPercent(item.percentage, 1)} du total
+                        </p>
+                      </div>
+                    </div>
+
+                    <span className="font-mono text-xs font-semibold tabular-nums text-[#141413] dark:text-[#F2F0E8] shrink-0">
+                      {formatCurrency(item.amount, currency)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+        </Card>
+      </div>
+
+      {/* 4. OPTIMIZATION ENGINE CONTEXTUAL CARDS */}
       <section className="space-y-3">
         <div className="flex items-center gap-2">
-          <Sparkles className="h-4 w-4 text-[#007AFF] dark:text-[#0A84FF]" />
-          <h3 className="text-sm font-semibold text-zinc-900 dark:text-white">
+          <Sparkles className="h-4 w-4 text-[#141413] dark:text-[#F2F0E8]" />
+          <h3 className="font-serif text-[19px] font-medium text-[#141413] dark:text-[#F2F0E8]">
             Moteur d’optimisation ({tips.length} conseil{tips.length > 1 ? 's' : ''})
           </h3>
         </div>
@@ -110,24 +497,24 @@ export function AnalyticsView({
             <Card
               key={tip.id}
               className={cn(
-                'p-4 sm:p-5 flex flex-col justify-between gap-3.5 border-l-4',
+                'p-4 sm:p-5 flex flex-col justify-between gap-3.5 border-l-2',
                 tip.severity === 'critical' &&
-                  'border-l-[#FF3B30] dark:border-l-[#FF453A]',
+                  'border-l-[#B91C1C] dark:border-l-[#EF4444]',
                 tip.severity === 'warning' &&
-                  'border-l-[#FF9500] dark:border-l-[#FF9F0A]',
+                  'border-l-[#B45309] dark:border-l-[#F59E0B]',
                 tip.severity === 'positive' &&
-                  'border-l-[#34C759] dark:border-l-[#30D158]',
+                  'border-l-[#15803D] dark:border-l-[#22C55E]',
                 tip.severity === 'info' &&
-                  'border-l-[#007AFF] dark:border-l-[#0A84FF]'
+                  'border-l-[#141413] dark:border-l-[#F2F0E8]'
               )}
             >
               <div className="space-y-2">
                 <div className="flex items-center justify-between gap-2">
                   <div className="inline-flex items-center gap-2">
-                    <span className="h-7 w-7 rounded-xl bg-black/[0.04] dark:bg-white/[0.08] flex items-center justify-center">
+                    <span className="h-7 w-7 rounded-sm border border-[#E2E0D8] dark:border-[#2A2A27] bg-[#FCFBF9] dark:bg-[#141413] flex items-center justify-center">
                       {getTipIcon(tip)}
                     </span>
-                    <span className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400">
+                    <span className="editorial-kicker">
                       {tip.type === 'rebalance'
                         ? 'Rééquilibrage'
                         : tip.type === 'surge'
@@ -157,10 +544,10 @@ export function AnalyticsView({
                   </Badge>
                 </div>
 
-                <h4 className="text-[15px] font-semibold text-zinc-900 dark:text-white leading-snug">
+                <h4 className="font-serif text-[17px] font-medium text-[#141413] dark:text-[#F2F0E8] leading-snug">
                   {tip.title}
                 </h4>
-                <p className="text-xs leading-relaxed text-zinc-600 dark:text-zinc-300">
+                <p className="text-xs leading-relaxed text-[#5C5B57] dark:text-[#9A9890]">
                   {tip.description}
                 </p>
               </div>
@@ -182,228 +569,6 @@ export function AnalyticsView({
           ))}
         </div>
       </section>
-
-      {/* 2. CHARTS GRID */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-        {/* Donut Chart: Spending Distribution by Category */}
-        <Card className="p-4 sm:p-5 space-y-4">
-          <div>
-            <h3 className="text-[15px] font-semibold text-zinc-900 dark:text-white">
-              Répartition des dépenses
-            </h3>
-            <p className="text-xs text-zinc-500 dark:text-zinc-400">
-              Ventilation par catégorie sur {formatMonthLabel(selectedMonthKey)}
-            </p>
-          </div>
-
-          {distribution.length === 0 ? (
-            <div className="h-56 flex items-center justify-center text-xs text-zinc-400">
-              Aucune dépense enregistrée sur ce mois.
-            </div>
-          ) : (
-            <>
-              <div className="relative h-56 w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={distribution}
-                      dataKey="amount"
-                      nameKey="name"
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={62}
-                      outerRadius={88}
-                      paddingAngle={3}
-                      stroke="none"
-                    >
-                      {distribution.map((entry) => (
-                        <Cell key={entry.categoryId} fill={entry.color} />
-                      ))}
-                    </Pie>
-                    <Tooltip
-                      formatter={(value: number) => formatCurrency(value, currency)}
-                      contentStyle={{
-                        borderRadius: '4px',
-                        border: isDark ? '1px solid #2A2A27' : '1px solid #E2E0D8',
-                        backgroundColor: isDark ? '#181816' : '#FFFFFF',
-                        color: isDark ? '#F2F0E8' : '#141413',
-                        boxShadow: 'none',
-                        fontFamily: 'var(--font-mono)',
-                        fontSize: '11px',
-                        fontWeight: 600,
-                      }}
-                    />
-                  </PieChart>
-                </ResponsiveContainer>
-
-                {/* Center total inside donut */}
-                <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                  <span className="text-[11px] font-medium text-zinc-400">Total</span>
-                  <span className="text-lg font-bold tabular-nums text-zinc-900 dark:text-white">
-                    {formatCurrency(totalMonthSpent, currency)}
-                  </span>
-                </div>
-              </div>
-
-              {/* Ranked breakdown list */}
-              <div className="divide-y divide-black/[0.05] dark:divide-white/[0.07]">
-                {distribution.map((item) => (
-                  <div
-                    key={item.categoryId}
-                    className="flex items-center justify-between gap-2 py-2.5"
-                  >
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      <CategoryIcon icon={item.icon} color={item.color} size="sm" />
-                      <div className="min-w-0">
-                        <p className="text-xs font-semibold text-zinc-900 dark:text-white truncate">
-                          {item.name}
-                        </p>
-                        <p className="text-[11px] text-zinc-400 tabular-nums">
-                          {formatPercent(item.percentage, 1)} du total
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-2 shrink-0">
-                      {item.monthlyLimit > 0 && item.status !== 'green' && (
-                        <AlertStatusBadge
-                          status={item.status}
-                          usagePercent={(item.amount / item.monthlyLimit) * 100}
-                        />
-                      )}
-                      <span className="text-xs font-bold tabular-nums text-zinc-900 dark:text-white">
-                        {formatCurrency(item.amount, currency)}
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </>
-          )}
-        </Card>
-
-        {/* Bar Chart: Monthly Evolution (Last 6 Months) */}
-        <Card className="p-4 sm:p-5 space-y-4 flex flex-col justify-between">
-          <div>
-            <h3 className="text-[15px] font-semibold text-zinc-900 dark:text-white">
-              Évolution mensuelle (6 mois)
-            </h3>
-            <p className="text-xs text-zinc-500 dark:text-zinc-400">
-              Comparaison de vos revenus et dépenses mois par mois
-            </p>
-          </div>
-
-          <div className="h-64 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart
-                data={monthlyEvolution}
-                margin={{ top: 8, right: 4, left: -18, bottom: 0 }}
-                barGap={4}
-              >
-                <CartesianGrid
-                  strokeDasharray="2 3"
-                  vertical={false}
-                  stroke={isDark ? '#2A2A27' : '#E2E0D8'}
-                />
-                <XAxis
-                  dataKey="label"
-                  axisLine={{ stroke: isDark ? '#2A2A27' : '#E2E0D8' }}
-                  tickLine={false}
-                  tick={{
-                    fontSize: 10,
-                    fontFamily: 'var(--font-mono)',
-                    fill: isDark ? '#9A9890' : '#5C5B57',
-                  }}
-                />
-                <YAxis
-                  axisLine={false}
-                  tickLine={false}
-                  tick={{
-                    fontSize: 10,
-                    fontFamily: 'var(--font-mono)',
-                    fill: isDark ? '#9A9890' : '#5C5B57',
-                  }}
-                  tickFormatter={(v) => `${Math.round(v)}€`}
-                />
-                <Tooltip
-                  cursor={{
-                    fill: isDark ? 'rgba(242,240,232,0.04)' : 'rgba(20,20,19,0.03)',
-                  }}
-                  formatter={(value: number, name: string) => [
-                    formatCurrency(value, currency),
-                    name === 'income' ? 'Revenus' : 'Dépenses',
-                  ]}
-                  contentStyle={{
-                    borderRadius: '4px',
-                    border: isDark ? '1px solid #2A2A27' : '1px solid #E2E0D8',
-                    backgroundColor: isDark ? '#181816' : '#FFFFFF',
-                    color: isDark ? '#F2F0E8' : '#141413',
-                    boxShadow: 'none',
-                    fontFamily: 'var(--font-mono)',
-                    fontSize: '11px',
-                    fontWeight: 600,
-                  }}
-                />
-                <Bar
-                  dataKey="income"
-                  name="income"
-                  fill={isDark ? '#22C55E' : '#15803D'}
-                  radius={[2, 2, 0, 0]}
-                  maxBarSize={20}
-                />
-                <Bar
-                  dataKey="expenses"
-                  name="expenses"
-                  fill={isDark ? '#F2F0E8' : '#141413'}
-                  radius={[2, 2, 0, 0]}
-                  maxBarSize={20}
-                />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-
-          {/* Monthly Net Savings Strip */}
-          <div className="space-y-2 pt-2 border-t border-black/[0.05] dark:border-white/[0.07]">
-            <div className="flex items-center justify-between text-[11px] text-zinc-500 dark:text-zinc-400">
-              <div className="flex items-center gap-3">
-                <span className="inline-flex items-center gap-1.5">
-                  <span className="h-2.5 w-2.5 rounded-sm bg-[#34C759]" />
-                  Revenus
-                </span>
-                <span className="inline-flex items-center gap-1.5">
-                  <span className="h-2.5 w-2.5 rounded-sm bg-[#007AFF]" />
-                  Dépenses
-                </span>
-              </div>
-              <span>Solde net / mois</span>
-            </div>
-
-            <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5">
-              {monthlyEvolution.map((m) => (
-                <div
-                  key={m.monthKey}
-                  className="rounded-xl bg-zinc-50 dark:bg-white/[0.04] px-2 py-1.5 text-center"
-                >
-                  <p className="text-[10px] text-zinc-400 truncate">{m.label}</p>
-                  <p
-                    className={cn(
-                      'text-[11px] font-bold tabular-nums mt-0.5',
-                      m.savings >= 0
-                        ? 'text-[#34C759] dark:text-[#30D158]'
-                        : 'text-[#FF3B30] dark:text-[#FF453A]'
-                    )}
-                  >
-                    {formatCurrency(m.savings, currency, {
-                      compact: true,
-                      showSign: true,
-                    })}
-                  </p>
-                </div>
-              ))}
-            </div>
-          </div>
-        </Card>
-      </div>
     </div>
   );
 }

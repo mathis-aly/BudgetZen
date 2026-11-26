@@ -5,11 +5,22 @@ import {
   Plus_Jakarta_Sans,
 } from 'next/font/google';
 import './globals.css';
-import { EditorialSplashProvider, ThemeProvider } from '@/components/ui';
+import { PrivacyShieldProvider, ThemeProvider } from '@/components/ui';
 import {
   CommandMenu,
   CommandPaletteProvider,
 } from '@/features/command-palette';
+import {
+  DevConsole,
+  SandboxProvider,
+  SandboxTopBanner,
+  SandboxTour,
+  SandboxTransition,
+} from '@/features/dev-console';
+import {
+  PlanningWaveIntro,
+  PlanningWorkspace,
+} from '@/features/planning';
 
 const newsreader = Newsreader({
   subsets: ['latin'],
@@ -84,15 +95,31 @@ export default function RootLayout({
       suppressHydrationWarning
       className={`${newsreader.variable} ${plusJakartaSans.variable} ${jetBrainsMono.variable}`}
     >
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html:
+              "try{if(sessionStorage.getItem('budgetzen_intro_seen')){document.documentElement.dataset.introSeen='1'}}catch(e){}",
+          }}
+        />
+      </head>
       <body className="min-h-dvh font-sans bg-[#F7F6F2] text-[#141413] dark:bg-[#111110] dark:text-[#F2F0E8] selection:bg-[#141413] selection:text-[#F7F6F2] dark:selection:bg-[#F2F0E8] dark:selection:text-[#111110]">
-        <ThemeProvider>
-          <EditorialSplashProvider>
-            <CommandPaletteProvider>
-              {children}
-              <CommandMenu />
-            </CommandPaletteProvider>
-          </EditorialSplashProvider>
-        </ThemeProvider>
+        <PrivacyShieldProvider>
+          <SandboxProvider>
+            <ThemeProvider>
+              <CommandPaletteProvider>
+                <SandboxTopBanner />
+                {children}
+                <CommandMenu />
+                <DevConsole />
+                <SandboxTransition />
+                <SandboxTour />
+                <PlanningWorkspace />
+                <PlanningWaveIntro />
+              </CommandPaletteProvider>
+            </ThemeProvider>
+          </SandboxProvider>
+        </PrivacyShieldProvider>
       </body>
     </html>
   );
