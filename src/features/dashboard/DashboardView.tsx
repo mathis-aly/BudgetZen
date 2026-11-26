@@ -52,7 +52,8 @@ export type NavTab =
   | 'taxes'
   | 'custom-indices'
   | 'analytics'
-  | 'settings';
+  | 'settings'
+  | 'projects';
 
 export function DashboardView({
   settings,

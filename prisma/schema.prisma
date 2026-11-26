@@ -256,3 +256,23 @@ model PlanningEdge {
   @@index([targetId])
   @@map("planning_edges")
 }
+
+model FinancialProject {
+  id                       String   @id @default(uuid())
+  name                     String
+  category                 String   @default("OTHER") // "REAL_ESTATE" | "VEHICLE" | "OTHER"
+  currentPrice             Float    @map("current_price")
+  extraFeesPercent         Float    @default(0) @map("extra_fees_percent")
+  annualPriceGrowthPercent Float    @default(0) @map("annual_price_growth_percent")
+  targetMonths             Int      @map("target_months")
+  savedAmount              Float    @default(0) @map("saved_amount")
+  useLoan                  Boolean  @default(false) @map("use_loan")
+  downPaymentPercent       Float    @default(100) @map("down_payment_percent")
+  loanInterestRate         Float    @default(3.5) @map("loan_interest_rate")
+  loanDurationYears        Int      @default(20) @map("loan_duration_years")
+  createdAt                DateTime @default(now()) @map("created_at")
+
+  @@index([category])
+  @@index([createdAt])
+  @@map("financial_projects")
+}

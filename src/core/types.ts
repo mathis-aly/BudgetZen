@@ -523,3 +523,43 @@ export interface PlanningEdgeDTO {
   targetId: string;
   label: string | null;
 }
+
+// ============================================================================
+// Module: Projets & Financements
+// ============================================================================
+export type FinancialProjectCategory = 'REAL_ESTATE' | 'VEHICLE' | 'OTHER';
+
+export interface FinancialProjectInput {
+  currentPrice: number;
+  extraFeesPercent: number;
+  annualPriceGrowthPercent: number;
+  targetMonths: number;
+  savedAmount: number;
+  useLoan: boolean;
+  downPaymentPercent: number;
+  loanInterestRate: number;
+  loanDurationYears: number;
+}
+
+export interface FinancialProjectDTO extends FinancialProjectInput {
+  id: string;
+  name: string;
+  category: FinancialProjectCategory;
+  createdAt: string;
+}
+
+export interface FinancialProjectMetrics {
+  projectedPrice: number;
+  priceGrowthDelta: number;
+  extraFeesAmount: number;
+  totalProjectCost: number;
+  requiredSavingsTarget: number;
+  remainingSavingsNeeded: number;
+  progressPercent: number;
+  requiredMonthlySavings: number;
+  loanPrincipal: number;
+  monthlyLoanPayment: number;
+  totalLoanInterestCost: number;
+  debtToIncomeRatio: number;
+  isHighDebtRisk: boolean;
+}

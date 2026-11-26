@@ -29,6 +29,7 @@ export function DevConsole() {
     isPlanningOpen,
     enterPlanning,
     exitPlanning,
+    navigateShell,
     isConsoleOpen,
     setConsoleOpen,
     enterSandbox,
@@ -112,6 +113,10 @@ export function DevConsole() {
           },
           {
             kind: 'muted',
+            text: '  projets        Ouvre le module Projets & Financements (alias: projects)',
+          },
+          {
+            kind: 'muted',
             text: '  exit | prod    Quitte le Mode Test ou Planification et revient à la prod',
           },
           {
@@ -165,6 +170,22 @@ export function DevConsole() {
           },
         ]);
         enterPlanning();
+        break;
+      }
+
+      case 'projets':
+      case 'projects': {
+        if (isPlanningOpen) {
+          exitPlanning();
+        }
+        appendLines([
+          {
+            kind: 'info',
+            text: '[PROJETS] Ouverture du module Projets & Financements…',
+          },
+        ]);
+        navigateShell('projects');
+        setConsoleOpen(false);
         break;
       }
 
@@ -354,7 +375,7 @@ export function DevConsole() {
                 autoCorrect="off"
                 autoCapitalize="none"
                 spellCheck={false}
-                placeholder="test | planification | exit | help"
+                placeholder="test | planification | projets | exit | help"
                 aria-label="Invite de commande développeur"
                 className="w-full bg-transparent text-[#F7F6F2] placeholder:text-[#6B6962] focus:outline-none font-mono tabular-nums"
               />

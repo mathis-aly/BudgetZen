@@ -11,6 +11,8 @@ import {
   CategoryDTO,
   CustomIndexDTO,
   CustomIndexType,
+  FinancialProjectCategory,
+  FinancialProjectDTO,
   IndexComponentSourceType,
   MonthlyReportDTO,
   PlanningEdgeDTO,
@@ -103,6 +105,12 @@ const VALID_RESOURCE_KINDS = new Set<PlanningResourceKind>([
   'ARTICLE',
 ]);
 
+const VALID_PROJECT_CATEGORIES = new Set<FinancialProjectCategory>([
+  'REAL_ESTATE',
+  'VEHICLE',
+  'OTHER',
+]);
+
 /**
  * Empties all balances, targets, transactions, assets, prices, taxes, and planning
  * graphs in memory so users can test a clean 0 € scenario inside Sandbox Mode.
@@ -141,6 +149,7 @@ export function resetSandboxToZero(
   };
   next.taxEntries = [];
   next.customIndices = [];
+  next.financialProjects = [];
   next.planningNodes = [];
   next.planningEdges = [];
 
@@ -186,6 +195,8 @@ export function applySandboxApiMutation(
         return ok(state, state.taxEntries);
       case '/api/custom-indices':
         return ok(state, state.customIndices);
+      case '/api/projects':
+        return ok(state, state.financialProjects);
       case '/api/planning':
         return ok(state, {
           nodes: state.planningNodes ?? [],
@@ -1145,6 +1156,142 @@ export function applySandboxApiMutation(
 
     if (method === 'DELETE') {
       state.planningEdges = edges.filter((e) => e.id !== id);
+      return ok(state, { ok: true });
+    }
+  }
+
+  // --- Financial Projects (/api/projects, /api/projects/:id) ---
+  if (pathname === '/api/projects' && method === 'POST') {
+    const name = typeof body.name === 'string' ? body.name.trim() : '';
+    const currentPrice = Number(body.currentPrice);
+    if (!name) return fail(state, 'Le nom du projet est requis.');
+    if (!Number.isFinite(currentPrice) || currentPrice <= 0) {
+      return fail(state, 'Le prix actuel du bien doit être supérieur à 0 €.');
+    }
+
+    const useLoan = Boolean(body.useLoan);
+    const created: FinancialProjectDTO = {
+      id: createSandboxId('proj'),
+      name,
+      category: VALID_PROJECT_CATEGORIES.has(
+        body.category as FinancialProjectCategory
+      )
+        ? (body.category as FinancialProjectCategory)
+        : 'OTHER',
+      currentPrice: roundCurrency(currentPrice),
+      extraFeesPercent:
+        Math.round(
+          Math.min(50, Math.max(0, Number(body.extraFeesPercent) || 0)) * 10
+        ) / 10,
+      annualPriceGrowthPercent:
+        Math.round(
+          Math.min(
+            30,
+            Math.max(-50, Number(body.annualPriceGrowthPercent) || 0)
+          ) * 10
+        ) / 10,
+      targetMonths: Math.min(
+        480,
+        Math.max(1, Math.round(Number(body.targetMonths) || 24))
+      ),
+      savedAmount: Math.max(0, roundCurrency(Number(body.savedAmount) || 0)),
+      useLoan,
+      downPaymentPercent:
+        Math.round(
+          Math.min(
+            100,
+            Math.max(0, Number(body.downPaymentPercent ?? (useLoan ? 20 : 100)))
+          ) * 10
+        ) / 10,
+      loanInterestRate: roundCurrency(
+        Math.min(25, Math.max(0, Number(body.loanInterestRate ?? 3.5)))
+      ),
+      loanDurationYears: Math.min(
+        35,
+        Math.max(1, Math.round(Number(body.loanDurationYears ?? 20)))
+      ),
+      createdAt: nowIso,
+    };
+    state.financialProjects = [created, ...state.financialProjects];
+    return ok(state, created, 201);
+  }
+
+  const projectMatch = pathname.match(/^\/api\/projects\/([^/]+)$/);
+  if (projectMatch) {
+    const id = decodeURIComponent(projectMatch[1]);
+    const idx = state.financialProjects.findIndex((p) => p.id === id);
+    if (idx === -1) return fail(state, 'Projet financier introuvable.', 404);
+
+    if (method === 'PATCH') {
+      const proj = state.financialProjects[idx];
+      if (typeof body.name === 'string' && body.name.trim()) {
+        proj.name = body.name.trim();
+      }
+      if (
+        VALID_PROJECT_CATEGORIES.has(body.category as FinancialProjectCategory)
+      ) {
+        proj.category = body.category as FinancialProjectCategory;
+      }
+      if (body.currentPrice !== undefined) {
+        const cp = Number(body.currentPrice);
+        if (Number.isFinite(cp) && cp > 0) proj.currentPrice = roundCurrency(cp);
+      }
+      if (body.extraFeesPercent !== undefined) {
+        const ef = Number(body.extraFeesPercent);
+        if (Number.isFinite(ef)) {
+          proj.extraFeesPercent =
+            Math.round(Math.min(50, Math.max(0, ef)) * 10) / 10;
+        }
+      }
+      if (body.annualPriceGrowthPercent !== undefined) {
+        const g = Number(body.annualPriceGrowthPercent);
+        if (Number.isFinite(g)) {
+          proj.annualPriceGrowthPercent =
+            Math.round(Math.min(30, Math.max(-50, g)) * 10) / 10;
+        }
+      }
+      if (body.targetMonths !== undefined) {
+        const tm = Math.round(Number(body.targetMonths));
+        if (Number.isFinite(tm) && tm >= 1) {
+          proj.targetMonths = Math.min(480, Math.max(1, tm));
+        }
+      }
+      if (body.addSavings !== undefined) {
+        const delta = Number(body.addSavings);
+        if (Number.isFinite(delta)) {
+          proj.savedAmount = Math.max(0, roundCurrency(proj.savedAmount + delta));
+        }
+      } else if (body.savedAmount !== undefined) {
+        const sa = Number(body.savedAmount);
+        if (Number.isFinite(sa) && sa >= 0) {
+          proj.savedAmount = roundCurrency(sa);
+        }
+      }
+      if (typeof body.useLoan === 'boolean') proj.useLoan = body.useLoan;
+      if (body.downPaymentPercent !== undefined) {
+        const dp = Number(body.downPaymentPercent);
+        if (Number.isFinite(dp)) {
+          proj.downPaymentPercent =
+            Math.round(Math.min(100, Math.max(0, dp)) * 10) / 10;
+        }
+      }
+      if (body.loanInterestRate !== undefined) {
+        const lr = Number(body.loanInterestRate);
+        if (Number.isFinite(lr)) {
+          proj.loanInterestRate = roundCurrency(Math.min(25, Math.max(0, lr)));
+        }
+      }
+      if (body.loanDurationYears !== undefined) {
+        const dy = Math.round(Number(body.loanDurationYears));
+        if (Number.isFinite(dy) && dy >= 1) {
+          proj.loanDurationYears = Math.min(35, Math.max(1, dy));
+        }
+      }
+      return ok(state, proj);
+    }
+
+    if (method === 'DELETE') {
+      state.financialProjects.splice(idx, 1);
       return ok(state, { ok: true });
     }
   }

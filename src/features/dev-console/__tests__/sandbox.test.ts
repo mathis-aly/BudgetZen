@@ -108,6 +108,7 @@ function createFixtureState(): AppBootstrapData {
     },
     taxEntries: [],
     customIndices: [],
+    financialProjects: [],
   };
 }
 
@@ -324,5 +325,54 @@ describe('Sandbox client reducer isolation', () => {
     expect(del.state.planningNodes).toHaveLength(1);
     expect(del.state.planningEdges).toHaveLength(0);
     expect(prodState.planningNodes).toBeUndefined();
+  });
+
+  it('simulates financial projects creation, addSavings, delete, and reset to 0 in memory', () => {
+    const prodState = createFixtureState();
+
+    const createdRes = applySandboxApiMutation(
+      prodState,
+      'POST',
+      '/api/projects',
+      {
+        name: 'Appartement T2 Toulouse',
+        category: 'REAL_ESTATE',
+        currentPrice: 220000,
+        extraFeesPercent: 8,
+        annualPriceGrowthPercent: 2,
+        targetMonths: 24,
+        savedAmount: 15000,
+        useLoan: true,
+        downPaymentPercent: 20,
+        loanInterestRate: 3.5,
+        loanDurationYears: 20,
+      }
+    );
+
+    expect(createdRes.response.status).toBe(201);
+    const createdProj = createdRes.response.data as { id: string; savedAmount: number };
+    expect(createdProj.savedAmount).toBe(15000);
+    expect(createdRes.state.financialProjects).toHaveLength(1);
+
+    const addedRes = applySandboxApiMutation(
+      createdRes.state,
+      'PATCH',
+      `/api/projects/${createdProj.id}`,
+      { addSavings: 2500 }
+    );
+    expect(addedRes.response.status).toBe(200);
+    expect(addedRes.state.financialProjects[0]?.savedAmount).toBe(17500);
+
+    const zeroed = resetSandboxToZero(addedRes.state);
+    expect(zeroed.financialProjects).toHaveLength(0);
+
+    const deletedRes = applySandboxApiMutation(
+      addedRes.state,
+      'DELETE',
+      `/api/projects/${createdProj.id}`
+    );
+    expect(deletedRes.response.status).toBe(200);
+    expect(deletedRes.state.financialProjects).toHaveLength(0);
+    expect(prodState.financialProjects).toHaveLength(0);
   });
 });
