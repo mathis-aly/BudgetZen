@@ -22,6 +22,7 @@ function isEditableElement(target: EventTarget | null): boolean {
 
 export interface GlobalShortcutsOptions {
   isLocked?: boolean;
+  isPlanningActive?: boolean;
   isPaletteOpen: boolean;
   onTogglePalette: () => void;
   onClosePalette: () => void;
@@ -39,6 +40,7 @@ export interface GlobalShortcutsOptions {
  */
 export function useGlobalShortcuts({
   isLocked = false,
+  isPlanningActive = false,
   isPaletteOpen,
   onTogglePalette,
   onClosePalette,
@@ -83,6 +85,7 @@ export function useGlobalShortcuts({
 
       // 3. ⌘ + E (or Ctrl + E) — Open Quick Add modal immediately
       if (mod && !e.altKey && !e.shiftKey && keyLower === 'e') {
+        if (isPlanningActive) return;
         e.preventDefault();
         onClosePalette();
         onOpenQuickAdd();
@@ -91,6 +94,7 @@ export function useGlobalShortcuts({
 
       // 4. ⌘ + 1..6 (or Ctrl + 1..6) — Instant navigation to primary views
       if (mod && !e.altKey && !e.shiftKey && e.key in SHORTCUT_NAV_MAP) {
+        if (isPlanningActive) return;
         e.preventDefault();
         onClosePalette();
         onNavigate(SHORTCUT_NAV_MAP[e.key]);
@@ -104,8 +108,8 @@ export function useGlobalShortcuts({
         return;
       }
 
-      // 6. Plain single-key shortcuts (`N` or `+`) — strictly ignored when an input/textarea/modal/palette is active
-      if (mod || e.altKey || isPaletteOpen) return;
+      // 6. Plain single-key shortcuts (`N` or `+`) — strictly ignored when an input/textarea/modal/palette/planning is active
+      if (isPlanningActive || mod || e.altKey || isPaletteOpen) return;
       if (isEditableElement(e.target)) return;
       if (document.querySelector('[role="dialog"]')) return;
 
@@ -117,5 +121,13 @@ export function useGlobalShortcuts({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isLocked, isPaletteOpen, onTogglePalette, onClosePalette, onOpenQuickAdd, onNavigate]);
+  }, [
+    isLocked,
+    isPlanningActive,
+    isPaletteOpen,
+    onTogglePalette,
+    onClosePalette,
+    onOpenQuickAdd,
+    onNavigate,
+  ]);
 }

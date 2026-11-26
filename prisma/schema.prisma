@@ -226,3 +226,33 @@ model IndexDataPoint {
   @@index([indexId, recordedAt])
   @@map("index_data_points")
 }
+
+model PlanningNode {
+  id            String         @id @default(uuid())
+  type          String         @default("IDEA") // "IDEA" | "RESOURCE" | "GOAL"
+  title         String
+  content       String?
+  url           String?
+  resourceKind  String?        @map("resource_kind") // "YOUTUBE" | "ARTICLE"
+  positionX     Float          @default(0) @map("position_x")
+  positionY     Float          @default(0) @map("position_y")
+  createdAt     DateTime       @default(now()) @map("created_at")
+  outgoingEdges PlanningEdge[] @relation("PlanningEdgeSource")
+  incomingEdges PlanningEdge[] @relation("PlanningEdgeTarget")
+
+  @@index([createdAt])
+  @@map("planning_nodes")
+}
+
+model PlanningEdge {
+  id       String       @id @default(uuid())
+  sourceId String       @map("source_id")
+  targetId String       @map("target_id")
+  label    String?
+  source   PlanningNode @relation("PlanningEdgeSource", fields: [sourceId], references: [id], onDelete: Cascade)
+  target   PlanningNode @relation("PlanningEdgeTarget", fields: [targetId], references: [id], onDelete: Cascade)
+
+  @@index([sourceId])
+  @@index([targetId])
+  @@map("planning_edges")
+}

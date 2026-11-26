@@ -13,6 +13,10 @@ import {
   CustomIndexType,
   IndexComponentSourceType,
   MonthlyReportDTO,
+  PlanningEdgeDTO,
+  PlanningNodeDTO,
+  PlanningNodeType,
+  PlanningResourceKind,
   RecurringPaymentDTO,
   ReserveExpenseDTO,
   TaxEntryCategory,
@@ -88,6 +92,61 @@ function fail(state: AppBootstrapData, message: string, status = 400) {
   return { state, response: { status, data: { error: message } } satisfies SandboxApiResponse };
 }
 
+const VALID_PLANNING_TYPES = new Set<PlanningNodeType>([
+  'IDEA',
+  'RESOURCE',
+  'GOAL',
+]);
+
+const VALID_RESOURCE_KINDS = new Set<PlanningResourceKind>([
+  'YOUTUBE',
+  'ARTICLE',
+]);
+
+/**
+ * Empties all balances, targets, transactions, assets, prices, taxes, and planning
+ * graphs in memory so users can test a clean 0 € scenario inside Sandbox Mode.
+ */
+export function resetSandboxToZero(
+  currentState: AppBootstrapData
+): AppBootstrapData {
+  const next = structuredClone(currentState);
+  const nowIso = new Date().toISOString();
+
+  next.settings = {
+    ...next.settings,
+    initialBalance: 0,
+    monthlyIncomeTarget: 0,
+  };
+
+  next.categories = next.categories.map((cat) => ({
+    ...cat,
+    monthlyLimit: 0,
+    isArchived: false,
+  }));
+
+  next.transactions = [];
+  next.recurringPayments = [];
+  next.reserveExpenses = [];
+  next.wealthAssets = [];
+  next.trackedProducts = [];
+  next.monthlyReports = [];
+  next.taxProfile = {
+    ...next.taxProfile,
+    fiscalParts: 1,
+    deductionMode: 'STANDARD_10',
+    actualFeesAmount: 0,
+    withheldTaxPaid: 0,
+    updatedAt: nowIso,
+  };
+  next.taxEntries = [];
+  next.customIndices = [];
+  next.planningNodes = [];
+  next.planningEdges = [];
+
+  return next;
+}
+
 /**
  * Pure client-only state reducer simulating every `/api/*` endpoint against an
  * in-memory clone of `AppBootstrapData`. Never triggers any network or Prisma write.
@@ -127,6 +186,11 @@ export function applySandboxApiMutation(
         return ok(state, state.taxEntries);
       case '/api/custom-indices':
         return ok(state, state.customIndices);
+      case '/api/planning':
+        return ok(state, {
+          nodes: state.planningNodes ?? [],
+          edges: state.planningEdges ?? [],
+        });
       default:
         return fail(state, 'Route Sandbox non implémentée (lecture).', 404);
     }
@@ -948,6 +1012,141 @@ export function applySandboxApiMutation(
     const id = decodeURIComponent(indexMatch[1]);
     state.customIndices = state.customIndices.filter((i) => i.id !== id);
     return ok(state, { ok: true });
+  }
+
+  // --- Planning canvas (/api/planning/*) ---
+  if (pathname === '/api/planning/nodes' && method === 'POST') {
+    const title =
+      typeof body.title === 'string' && body.title.trim()
+        ? body.title.trim()
+        : 'Nouvelle idée';
+    const type = VALID_PLANNING_TYPES.has(body.type as PlanningNodeType)
+      ? (body.type as PlanningNodeType)
+      : 'IDEA';
+    const created: PlanningNodeDTO = {
+      id: createSandboxId('pnode'),
+      type,
+      title,
+      content:
+        typeof body.content === 'string' && body.content.trim()
+          ? body.content.trim()
+          : null,
+      url:
+        typeof body.url === 'string' && body.url.trim() ? body.url.trim() : null,
+      resourceKind: VALID_RESOURCE_KINDS.has(
+        body.resourceKind as PlanningResourceKind
+      )
+        ? (body.resourceKind as PlanningResourceKind)
+        : null,
+      positionX: Number.isFinite(Number(body.positionX))
+        ? Number(body.positionX)
+        : 0,
+      positionY: Number.isFinite(Number(body.positionY))
+        ? Number(body.positionY)
+        : 0,
+      createdAt: nowIso,
+    };
+    state.planningNodes = [...(state.planningNodes ?? []), created];
+    return ok(state, created, 201);
+  }
+
+  const planningNodeMatch = pathname.match(/^\/api\/planning\/nodes\/([^/]+)$/);
+  if (planningNodeMatch) {
+    const id = decodeURIComponent(planningNodeMatch[1]);
+    const nodes = state.planningNodes ?? [];
+    const idx = nodes.findIndex((n) => n.id === id);
+    if (idx === -1) return fail(state, 'Nœud introuvable.', 404);
+
+    if (method === 'PATCH') {
+      const node = nodes[idx];
+      if (typeof body.title === 'string') {
+        node.title = body.title.trim() || 'Sans titre';
+      }
+      if (body.content !== undefined) {
+        node.content =
+          typeof body.content === 'string' && body.content.trim()
+            ? body.content.trim()
+            : null;
+      }
+      if (VALID_PLANNING_TYPES.has(body.type as PlanningNodeType)) {
+        node.type = body.type as PlanningNodeType;
+      }
+      if (body.url !== undefined) {
+        node.url =
+          typeof body.url === 'string' && body.url.trim() ? body.url.trim() : null;
+      }
+      if (body.resourceKind !== undefined) {
+        node.resourceKind = VALID_RESOURCE_KINDS.has(
+          body.resourceKind as PlanningResourceKind
+        )
+          ? (body.resourceKind as PlanningResourceKind)
+          : null;
+      }
+      if (body.positionX !== undefined && Number.isFinite(Number(body.positionX))) {
+        node.positionX = Number(body.positionX);
+      }
+      if (body.positionY !== undefined && Number.isFinite(Number(body.positionY))) {
+        node.positionY = Number(body.positionY);
+      }
+      state.planningNodes = nodes;
+      return ok(state, node);
+    }
+
+    if (method === 'DELETE') {
+      state.planningNodes = nodes.filter((n) => n.id !== id);
+      state.planningEdges = (state.planningEdges ?? []).filter(
+        (e) => e.sourceId !== id && e.targetId !== id
+      );
+      return ok(state, { ok: true });
+    }
+  }
+
+  if (pathname === '/api/planning/edges' && method === 'POST') {
+    const sourceId = typeof body.sourceId === 'string' ? body.sourceId : '';
+    const targetId = typeof body.targetId === 'string' ? body.targetId : '';
+    if (!sourceId || !targetId || sourceId === targetId) {
+      return fail(state, 'Connexion invalide entre deux nœuds.');
+    }
+    const edges = state.planningEdges ?? [];
+    const existing = edges.find(
+      (e) => e.sourceId === sourceId && e.targetId === targetId
+    );
+    if (existing) return ok(state, existing);
+
+    const created: PlanningEdgeDTO = {
+      id: createSandboxId('pedge'),
+      sourceId,
+      targetId,
+      label:
+        typeof body.label === 'string' && body.label.trim()
+          ? body.label.trim()
+          : null,
+    };
+    state.planningEdges = [...edges, created];
+    return ok(state, created, 201);
+  }
+
+  const planningEdgeMatch = pathname.match(/^\/api\/planning\/edges\/([^/]+)$/);
+  if (planningEdgeMatch) {
+    const id = decodeURIComponent(planningEdgeMatch[1]);
+    const edges = state.planningEdges ?? [];
+    const idx = edges.findIndex((e) => e.id === id);
+    if (idx === -1) return fail(state, 'Connexion introuvable.', 404);
+
+    if (method === 'PATCH') {
+      const edge = edges[idx];
+      edge.label =
+        typeof body.label === 'string' && body.label.trim()
+          ? body.label.trim()
+          : null;
+      state.planningEdges = edges;
+      return ok(state, edge);
+    }
+
+    if (method === 'DELETE') {
+      state.planningEdges = edges.filter((e) => e.id !== id);
+      return ok(state, { ok: true });
+    }
   }
 
   return fail(

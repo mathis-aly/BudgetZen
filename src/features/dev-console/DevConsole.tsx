@@ -26,11 +26,13 @@ const INITIAL_LINES: TerminalLine[] = [
 export function DevConsole() {
   const {
     isSandbox,
-    plannedModuleStatus,
-    markPlannedModule,
+    isPlanningOpen,
+    enterPlanning,
+    exitPlanning,
     isConsoleOpen,
     setConsoleOpen,
     enterSandbox,
+    resetSandbox,
     exitSandbox,
   } = useSandbox();
 
@@ -102,11 +104,15 @@ export function DevConsole() {
           },
           {
             kind: 'muted',
-            text: '  planification  Affiche le statut du module Planification',
+            text: '  reset          Remet l’état en mémoire du Mode Test à 0 €',
           },
           {
             kind: 'muted',
-            text: '  exit | prod    Quitte le Mode Test et restaure les données SQLite réelles',
+            text: '  planification  Ouvre le canevas éditorial de planification (cartes & liens)',
+          },
+          {
+            kind: 'muted',
+            text: '  exit | prod    Quitte le Mode Test ou Planification et revient à la prod',
           },
           {
             kind: 'muted',
@@ -131,18 +137,41 @@ export function DevConsole() {
         break;
       }
 
+      case 'reset': {
+        if (isSandbox) {
+          resetSandbox();
+          appendLines([
+            {
+              kind: 'warn',
+              text: '[SANDBOX] État en mémoire intégralement remis à 0 € (SQLite intact).',
+            },
+          ]);
+        } else {
+          appendLines([
+            {
+              kind: 'info',
+              text: '[INFO] La commande "reset" n’est disponible qu’en Mode Test ("test").',
+            },
+          ]);
+        }
+        break;
+      }
+
       case 'planification': {
-        markPlannedModule();
         appendLines([
           {
             kind: 'info',
-            text: '[INFO] Module Planification en cours de spécification — disponible prochainement.',
+            text: '[PLANIFICATION] Ouverture du canevas éditorial ML…',
           },
         ]);
+        enterPlanning();
         break;
       }
 
       case 'prod': {
+        if (isPlanningOpen) {
+          exitPlanning();
+        }
         if (isSandbox) {
           appendLines([
             {
@@ -151,7 +180,7 @@ export function DevConsole() {
             },
           ]);
           exitSandbox();
-        } else {
+        } else if (!isPlanningOpen) {
           appendLines([
             {
               kind: 'info',
@@ -163,6 +192,10 @@ export function DevConsole() {
       }
 
       case 'exit': {
+        if (isPlanningOpen) {
+          exitPlanning();
+          break;
+        }
         if (isSandbox) {
           appendLines([
             {
@@ -260,9 +293,9 @@ export function DevConsole() {
                 >
                   {isSandbox ? 'SANDBOX · MÉMOIRE' : 'PROD · SQLITE'}
                 </span>
-                {plannedModuleStatus && (
-                  <span className="hidden sm:inline-block px-1.5 py-0.5 border border-[#2A2A27] text-[#9A9890] rounded-[2px] text-[10px]">
-                    {plannedModuleStatus}
+                {isPlanningOpen && (
+                  <span className="hidden sm:inline-block px-1.5 py-0.5 border border-[#F59E0B]/40 text-[#F59E0B] rounded-[2px] text-[10px]">
+                    PLANIFICATION
                   </span>
                 )}
               </div>

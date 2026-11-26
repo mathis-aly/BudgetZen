@@ -23,15 +23,22 @@ import {
   applySandboxApiMutation,
   applySandboxCloseMonth,
   applySandboxImportTransactions,
+  resetSandboxToZero,
 } from './sandbox-reducer';
 
 export const SANDBOX_TOUR_TOTAL_STEPS = 3;
 const SANDBOX_ENTRANCE_DURATION_MS = 900;
+const PLANNING_INTRO_DURATION_MS = 1220;
 
 interface SandboxContextValue {
   isSandbox: boolean;
   plannedModuleStatus: string | null;
   markPlannedModule: () => void;
+  isPlanningOpen: boolean;
+  isPlanningIntroActive: boolean;
+  enterPlanning: () => void;
+  completePlanningIntro: () => void;
+  exitPlanning: () => void;
   isConsoleOpen: boolean;
   setConsoleOpen: React.Dispatch<React.SetStateAction<boolean>>;
   isTransitioning: boolean;
@@ -47,6 +54,7 @@ interface SandboxContextValue {
   registerShellNav: (fn: (tab: NavTab) => void) => void;
   navigateShell: (tab: NavTab) => void;
   enterSandbox: () => void;
+  resetSandbox: () => void;
   exitSandbox: () => void;
   runSandboxImportTransactions: (
     rows: ImportTransactionRowPayload[]
@@ -60,6 +68,11 @@ const SandboxContext = createContext<SandboxContextValue>({
   isSandbox: false,
   plannedModuleStatus: null,
   markPlannedModule: () => {},
+  isPlanningOpen: false,
+  isPlanningIntroActive: false,
+  enterPlanning: () => {},
+  completePlanningIntro: () => {},
+  exitPlanning: () => {},
   isConsoleOpen: false,
   setConsoleOpen: () => {},
   isTransitioning: false,
@@ -75,6 +88,7 @@ const SandboxContext = createContext<SandboxContextValue>({
   registerShellNav: () => {},
   navigateShell: () => {},
   enterSandbox: () => {},
+  resetSandbox: () => {},
   exitSandbox: () => {},
   runSandboxImportTransactions: async () => ({
     ok: false,
@@ -117,6 +131,8 @@ export function SandboxProvider({ children }: { children: React.ReactNode }) {
   const [plannedModuleStatus, setPlannedModuleStatus] = useState<string | null>(
     null
   );
+  const [isPlanningOpen, setIsPlanningOpen] = useState(false);
+  const [isPlanningIntroActive, setIsPlanningIntroActive] = useState(false);
   const [isConsoleOpen, setConsoleOpen] = useState(false);
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [isTourActive, setIsTourActive] = useState(false);
@@ -127,11 +143,19 @@ export function SandboxProvider({ children }: { children: React.ReactNode }) {
   const sandboxDataRef = useRef<AppBootstrapData | null>(null);
   const shellNavRef = useRef<((tab: NavTab) => void) | null>(null);
   const transitionTimerRef = useRef<number | null>(null);
+  const planningIntroTimerRef = useRef<number | null>(null);
 
   const clearTransitionTimer = useCallback(() => {
     if (transitionTimerRef.current !== null) {
       window.clearTimeout(transitionTimerRef.current);
       transitionTimerRef.current = null;
+    }
+  }, []);
+
+  const clearPlanningIntroTimer = useCallback(() => {
+    if (planningIntroTimerRef.current !== null) {
+      window.clearTimeout(planningIntroTimerRef.current);
+      planningIntroTimerRef.current = null;
     }
   }, []);
 
@@ -148,8 +172,34 @@ export function SandboxProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const markPlannedModule = useCallback(() => {
-    setPlannedModuleStatus('Planification · En spécification');
+    setPlannedModuleStatus('Planification · Actif');
   }, []);
+
+  const enterPlanning = useCallback(() => {
+    clearPlanningIntroTimer();
+    setPlannedModuleStatus('Planification · Actif');
+    setConsoleOpen(false);
+    setIsTourActive(false);
+    setIsPlanningOpen(true);
+    setIsPlanningIntroActive(true);
+
+    planningIntroTimerRef.current = window.setTimeout(() => {
+      setIsPlanningIntroActive(false);
+      planningIntroTimerRef.current = null;
+    }, PLANNING_INTRO_DURATION_MS);
+  }, [clearPlanningIntroTimer]);
+
+  const completePlanningIntro = useCallback(() => {
+    clearPlanningIntroTimer();
+    setIsPlanningIntroActive(false);
+  }, [clearPlanningIntroTimer]);
+
+  const exitPlanning = useCallback(() => {
+    clearPlanningIntroTimer();
+    setIsPlanningIntroActive(false);
+    setIsPlanningOpen(false);
+    setConsoleOpen(false);
+  }, [clearPlanningIntroTimer]);
 
   const startTour = useCallback(() => {
     setTourStep(0);
@@ -177,6 +227,7 @@ export function SandboxProvider({ children }: { children: React.ReactNode }) {
 
   const enterSandbox = useCallback(() => {
     clearTransitionTimer();
+    clearPlanningIntroTimer();
 
     const baseSnapshot = realDataRef.current
       ? structuredClone(realDataRef.current)
@@ -185,6 +236,8 @@ export function SandboxProvider({ children }: { children: React.ReactNode }) {
     sandboxDataRef.current = baseSnapshot;
     setSandboxData(baseSnapshot);
     setIsSandbox(true);
+    setIsPlanningOpen(false);
+    setIsPlanningIntroActive(false);
     setConsoleOpen(false);
     setIsTourActive(false);
     setTourStep(0);
@@ -197,7 +250,17 @@ export function SandboxProvider({ children }: { children: React.ReactNode }) {
       setIsTourActive(true);
       transitionTimerRef.current = null;
     }, SANDBOX_ENTRANCE_DURATION_MS);
-  }, [clearTransitionTimer]);
+  }, [clearPlanningIntroTimer, clearTransitionTimer]);
+
+  const resetSandbox = useCallback(() => {
+    const current = sandboxDataRef.current ?? realDataRef.current;
+    if (!current) return;
+
+    const zeroed = resetSandboxToZero(current);
+    sandboxDataRef.current = zeroed;
+    setSandboxData(zeroed);
+    setIsTourActive(false);
+  }, []);
 
   const exitSandbox = useCallback(() => {
     clearTransitionTimer();
@@ -336,8 +399,11 @@ export function SandboxProvider({ children }: { children: React.ReactNode }) {
   }, [isLocked, isConsoleOpen]);
 
   useEffect(() => {
-    return () => clearTransitionTimer();
-  }, [clearTransitionTimer]);
+    return () => {
+      clearTransitionTimer();
+      clearPlanningIntroTimer();
+    };
+  }, [clearPlanningIntroTimer, clearTransitionTimer]);
 
   return (
     <SandboxContext.Provider
@@ -345,6 +411,11 @@ export function SandboxProvider({ children }: { children: React.ReactNode }) {
         isSandbox,
         plannedModuleStatus,
         markPlannedModule,
+        isPlanningOpen,
+        isPlanningIntroActive,
+        enterPlanning,
+        completePlanningIntro,
+        exitPlanning,
         isConsoleOpen,
         setConsoleOpen,
         isTransitioning,
@@ -360,6 +431,7 @@ export function SandboxProvider({ children }: { children: React.ReactNode }) {
         registerShellNav,
         navigateShell,
         enterSandbox,
+        resetSandbox,
         exitSandbox,
         runSandboxImportTransactions,
         runSandboxCloseMonth,
@@ -375,9 +447,40 @@ export function useSandbox() {
 }
 
 export function SandboxTopBanner() {
-  const { isSandbox, startTour, exitSandbox } = useSandbox();
+  const { isSandbox, startTour, resetSandbox, exitSandbox } = useSandbox();
+  const [confirmReset, setConfirmReset] = useState(false);
+  const [justReset, setJustReset] = useState(false);
+
+  useEffect(() => {
+    if (!confirmReset) return;
+    const t = window.setTimeout(() => setConfirmReset(false), 3500);
+    return () => window.clearTimeout(t);
+  }, [confirmReset]);
+
+  useEffect(() => {
+    if (!justReset) return;
+    const t = window.setTimeout(() => setJustReset(false), 1500);
+    return () => window.clearTimeout(t);
+  }, [justReset]);
+
+  useEffect(() => {
+    if (!isSandbox) {
+      setConfirmReset(false);
+      setJustReset(false);
+    }
+  }, [isSandbox]);
 
   if (!isSandbox) return null;
+
+  const handleResetClick = () => {
+    if (!confirmReset) {
+      setConfirmReset(true);
+      return;
+    }
+    resetSandbox();
+    setConfirmReset(false);
+    setJustReset(true);
+  };
 
   return (
     <div
@@ -395,20 +498,38 @@ export function SandboxTopBanner() {
         </span>
       </div>
 
-      <div className="flex items-center gap-2 shrink-0">
+      <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
         <button
           type="button"
           onClick={startTour}
-          className="hidden sm:inline-flex items-center px-1.5 py-0.5 border border-[#FDE68A]/50 text-[#F7F6F2] hover:bg-[#92400E] transition-colors rounded-[2px] tracking-wide"
+          className="hidden md:inline-flex items-center px-1.5 py-0.5 border border-[#FDE68A]/50 text-[#F7F6F2] hover:bg-[#92400E] transition-colors rounded-[2px] tracking-wide"
         >
           [GUIDE]
+        </button>
+        <button
+          type="button"
+          onClick={handleResetClick}
+          title="Vider les soldes, transactions et enveloppes du Sandbox pour repartir à 0 €"
+          className={
+            justReset
+              ? 'inline-flex items-center px-1.5 py-0.5 bg-[#15803D] border border-[#BBF7D0]/60 text-[#F7F6F2] rounded-[2px] font-semibold tracking-wide transition-colors'
+              : confirmReset
+                ? 'inline-flex items-center px-1.5 py-0.5 bg-[#111110] border border-[#FDE68A] text-[#FDE68A] rounded-[2px] font-semibold tracking-wide transition-colors'
+                : 'inline-flex items-center px-1.5 py-0.5 bg-[#92400E]/60 hover:bg-[#111110]/40 border border-[#FDE68A]/60 text-[#F7F6F2] rounded-[2px] font-semibold tracking-wide transition-colors'
+          }
+        >
+          {justReset
+            ? '[REMIS À 0 €]'
+            : confirmReset
+              ? '[CONFIRMER ZÉRO ?]'
+              : '[REMETTRE À ZÉRO]'}
         </button>
         <button
           type="button"
           onClick={exitSandbox}
           className="inline-flex items-center px-1.5 py-0.5 bg-[#111110]/30 hover:bg-[#111110]/55 border border-[#F7F6F2]/40 text-[#F7F6F2] transition-colors rounded-[2px] font-semibold tracking-wide"
         >
-          [QUITTER (exit)]
+          [QUITTER]
         </button>
       </div>
     </div>

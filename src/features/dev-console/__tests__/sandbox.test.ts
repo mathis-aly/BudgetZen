@@ -4,6 +4,7 @@ import {
   applySandboxApiMutation,
   applySandboxCloseMonth,
   applySandboxImportTransactions,
+  resetSandboxToZero,
 } from '../sandbox-reducer';
 
 function createFixtureState(): AppBootstrapData {
@@ -229,5 +230,99 @@ describe('Sandbox client reducer isolation', () => {
     expect(prodState.monthlyReports).toHaveLength(0);
     expect(prodState.categories).toHaveLength(2);
     expect(prodState.trackedProducts[0]?.entries).toHaveLength(1);
+  });
+
+  it('resets sandbox memory completely to 0 € while keeping categories usable and prod untouched', () => {
+    const prodState = createFixtureState();
+    const frozenBefore = JSON.stringify(prodState);
+
+    const zeroed = resetSandboxToZero(prodState);
+
+    expect(zeroed.settings.initialBalance).toBe(0);
+    expect(zeroed.settings.monthlyIncomeTarget).toBe(0);
+    expect(zeroed.transactions).toHaveLength(0);
+    expect(zeroed.wealthAssets).toHaveLength(0);
+    expect(zeroed.trackedProducts).toHaveLength(0);
+    expect(zeroed.monthlyReports).toHaveLength(0);
+    expect(zeroed.planningNodes).toHaveLength(0);
+    expect(zeroed.planningEdges).toHaveLength(0);
+    expect(zeroed.categories).toHaveLength(2);
+    expect(zeroed.categories.every((c) => c.monthlyLimit === 0)).toBe(true);
+
+    expect(JSON.stringify(prodState)).toBe(frozenBefore);
+  });
+
+  it('handles planning nodes and edges strictly in memory when Sandbox is active', () => {
+    const prodState = createFixtureState();
+
+    const n1 = applySandboxApiMutation(
+      prodState,
+      'POST',
+      '/api/planning/nodes',
+      {
+        type: 'IDEA',
+        title: 'Livret boosté',
+        content: 'Objectif 6 mois',
+        positionX: 120,
+        positionY: 80,
+      }
+    );
+    expect(n1.response.status).toBe(201);
+    const node1 = n1.response.data as { id: string };
+
+    const n2 = applySandboxApiMutation(
+      n1.state,
+      'POST',
+      '/api/planning/nodes',
+      {
+        type: 'RESOURCE',
+        title: 'Vidéo PEA',
+        url: 'https://youtu.be/dQw4w9WgXcQ',
+        resourceKind: 'YOUTUBE',
+        positionX: 420,
+        positionY: 160,
+      }
+    );
+    expect(n2.response.status).toBe(201);
+    const node2 = n2.response.data as { id: string };
+
+    const edgeRes = applySandboxApiMutation(
+      n2.state,
+      'POST',
+      '/api/planning/edges',
+      {
+        sourceId: node1.id,
+        targetId: node2.id,
+        label: 'inspiration',
+      }
+    );
+    expect(edgeRes.response.status).toBe(201);
+    expect(edgeRes.state.planningNodes).toHaveLength(2);
+    expect(edgeRes.state.planningEdges).toHaveLength(1);
+
+    const fetched = applySandboxApiMutation(edgeRes.state, 'GET', '/api/planning');
+    expect(fetched.response.status).toBe(200);
+    expect(
+      (fetched.response.data as { nodes: unknown[]; edges: unknown[] }).nodes
+    ).toHaveLength(2);
+
+    const moved = applySandboxApiMutation(
+      edgeRes.state,
+      'PATCH',
+      `/api/planning/nodes/${node1.id}`,
+      { positionX: 300, positionY: 220 }
+    );
+    expect(moved.response.status).toBe(200);
+    expect(moved.state.planningNodes?.[0]?.positionX).toBe(300);
+
+    const del = applySandboxApiMutation(
+      moved.state,
+      'DELETE',
+      `/api/planning/nodes/${node1.id}`
+    );
+    expect(del.response.status).toBe(200);
+    expect(del.state.planningNodes).toHaveLength(1);
+    expect(del.state.planningEdges).toHaveLength(0);
+    expect(prodState.planningNodes).toBeUndefined();
   });
 });
