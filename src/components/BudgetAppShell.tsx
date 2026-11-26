@@ -62,6 +62,7 @@ import { CustomIndicesView } from '@/features/custom-indices';
 import { AnalyticsView } from '@/features/analytics';
 import { useEffect as useSandboxSyncEffect } from 'react';
 import { SettingsView } from '@/features/settings';
+import { ProjectsView } from '@/features/projects';
 import { useCommandPalette } from '@/features/command-palette';
 import { useSandbox } from '@/features/dev-console';
 import { cn } from '@/lib/cn';
@@ -678,6 +679,21 @@ export function BudgetAppShell({ initialData }: { initialData: AppBootstrapData 
             currency={data.settings.currency}
             onSaved={refreshData}
             onNotify={(msg) => showToast(msg, 'success')}
+          />
+        )}
+
+        {activeTab === 'projects' && (
+          <ProjectsView
+            projects={data.financialProjects}
+            monthlyIncome={
+              summary.monthIncome > 0
+                ? summary.monthIncome
+                : data.settings.monthlyIncomeTarget
+            }
+            resteAVivre={summary.resteAVivre}
+            currency={data.settings.currency}
+            onChanged={refreshData}
+            onBackToDashboard={() => setActiveTab('dashboard')}
           />
         )}
       </main>

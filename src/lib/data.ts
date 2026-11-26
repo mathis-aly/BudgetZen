@@ -4,6 +4,8 @@ import type {
   CategoryDTO,
   CustomIndexDTO,
   CustomIndexType,
+  FinancialProjectCategory,
+  FinancialProjectDTO,
   IndexComponentSourceType,
   MonthlyReportDTO,
   PlanningEdgeDTO,
@@ -35,9 +37,16 @@ export interface AppBootstrapData {
   taxProfile: TaxProfileDTO;
   taxEntries: TaxEntryDTO[];
   customIndices: CustomIndexDTO[];
+  financialProjects: FinancialProjectDTO[];
   planningNodes?: PlanningNodeDTO[];
   planningEdges?: PlanningEdgeDTO[];
 }
+
+const VALID_PROJECT_CATEGORIES: FinancialProjectCategory[] = [
+  'REAL_ESTATE',
+  'VEHICLE',
+  'OTHER',
+];
 
 const VALID_WEALTH_CATEGORIES: WealthAssetCategory[] = [
   'SAVINGS',
@@ -97,6 +106,7 @@ export async function getBootstrapData(): Promise<AppBootstrapData> {
     monthlyReportsRows,
     taxEntriesRows,
     customIndicesRows,
+    financialProjectsRows,
   ] = await Promise.all([
     prisma.category.findMany({
       orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
@@ -138,6 +148,9 @@ export async function getBootstrapData(): Promise<AppBootstrapData> {
         components: true,
         dataPoints: { orderBy: { recordedAt: 'asc' } },
       },
+    }),
+    prisma.financialProject.findMany({
+      orderBy: { createdAt: 'desc' },
     }),
   ]);
 
@@ -277,6 +290,25 @@ export async function getBootstrapData(): Promise<AppBootstrapData> {
         value: d.value,
         recordedAt: d.recordedAt.toISOString(),
       })),
+    })),
+    financialProjects: financialProjectsRows.map((p) => ({
+      id: p.id,
+      name: p.name,
+      category: (VALID_PROJECT_CATEGORIES.includes(
+        p.category as FinancialProjectCategory
+      )
+        ? p.category
+        : 'OTHER') as FinancialProjectCategory,
+      currentPrice: p.currentPrice,
+      extraFeesPercent: p.extraFeesPercent,
+      annualPriceGrowthPercent: p.annualPriceGrowthPercent,
+      targetMonths: p.targetMonths,
+      savedAmount: p.savedAmount,
+      useLoan: p.useLoan,
+      downPaymentPercent: p.downPaymentPercent,
+      loanInterestRate: p.loanInterestRate,
+      loanDurationYears: p.loanDurationYears,
+      createdAt: p.createdAt.toISOString(),
     })),
   };
 }
