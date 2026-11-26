@@ -1,0 +1,80 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg-canvas: #F7F6F2;
+  --bg-surface: #FFFFFF;
+  --bg-subtle: #FCFBF9;
+  --border-hairline: #E2E0D8;
+  --text-primary: #141413;
+  --text-secondary: #5C5B57;
+  --semantic-positive: #15803D;
+  --semantic-warning: #B45309;
+  --semantic-danger: #B91C1C;
+}
+
+.dark {
+  --bg-canvas: #111110;
+  --bg-surface: #181816;
+  --bg-subtle: #1E1E1B;
+  --border-hairline: #2A2A27;
+  --text-primary: #F2F0E8;
+  --text-secondary: #9A9890;
+  --semantic-positive: #22C55E;
+  --semantic-warning: #F59E0B;
+  --semantic-danger: #EF4444;
+}
+
+@layer base {
+  html {
+    -webkit-tap-highlight-color: transparent;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    scroll-behavior: smooth;
+    background-color: var(--bg-canvas);
+    color: var(--text-primary);
+  }
+
+  body {
+    background-color: var(--bg-canvas);
+    color: var(--text-primary);
+    overscroll-behavior-y: none;
+    /* Subtle Swiss editorial paper micro-grain in light mode */
+    background-image: radial-gradient(rgba(20, 20, 19, 0.03) 0.5px, transparent 0.5px);
+    background-size: 16px 16px;
+  }
+
+  .dark body {
+    background-image: radial-gradient(rgba(242, 240, 232, 0.025) 0.5px, transparent 0.5px);
+  }
+
+  /* Enforce strict tabular numerals on all monospace and numeric utility elements */
+  .font-mono,
+  .tabular-nums {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum" 1;
+  }
+}
+
+/* Swiss editorial utility classes */
+.editorial-kicker {
+  @apply font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-[#5C5B57] dark:text-[#9A9890];
+}
+
+.editorial-rule {
+  @apply border-[#E2E0D8] dark:border-[#2A2A27];
+}
+
+/* Crisp minimal scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-hairline);
+  border-radius: 2px;
+}

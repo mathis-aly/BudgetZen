@@ -1,0 +1,228 @@
+// RÈGLE DE PERSISTANCE : Toute nouvelle colonne ajoutée à une table existante
+// doit obligatoirement définir une valeur par défaut (@default(...)) ou être
+// nullable (?) afin de préserver les données déjà enregistrées dans dev.db.
+// Avant toute modification de schéma, exécuter : npm run db:backup
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model AccountSettings {
+  id                  String   @id @default("default")
+  accountName         String   @default("Compte Courant") @map("account_name")
+  initialBalance      Float    @default(0) @map("initial_balance")
+  currency            String   @default("EUR")
+  monthlyIncomeTarget Float    @default(2800) @map("monthly_income_target")
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+
+  @@map("account_settings")
+}
+
+model Category {
+  id                String             @id @default(cuid())
+  name              String
+  type              String             @default("EXPENSE") // "EXPENSE" | "INCOME"
+  color             String             @default("#007AFF")
+  icon              String             @default("Tag")
+  monthlyLimit      Float              @default(0) @map("monthly_limit")
+  alertThreshold    Int                @default(80) @map("alert_threshold")
+  isArchived        Boolean            @default(false) @map("is_archived")
+  sortOrder         Int                @default(0) @map("sort_order")
+  createdAt         DateTime           @default(now()) @map("created_at")
+  updatedAt         DateTime           @updatedAt @map("updated_at")
+  transactions      Transaction[]
+  recurringPayments RecurringPayment[]
+
+  @@index([isArchived, type])
+  @@map("categories")
+}
+
+model Transaction {
+  id                 String            @id @default(cuid())
+  amount             Float
+  type               String            @default("EXPENSE") // "EXPENSE" | "INCOME"
+  date               DateTime
+  note               String?
+  categoryId         String            @map("category_id")
+  category           Category          @relation(fields: [categoryId], references: [id])
+  recurringPaymentId String?           @map("recurring_payment_id")
+  recurringPayment   RecurringPayment? @relation(fields: [recurringPaymentId], references: [id], onDelete: SetNull)
+  billingMonth       String?           @map("billing_month") // "YYYY-MM"
+  createdAt          DateTime          @default(now()) @map("created_at")
+  updatedAt          DateTime          @updatedAt @map("updated_at")
+
+  @@index([date])
+  @@index([categoryId, date])
+  @@index([type, date])
+  @@map("transactions")
+}
+
+model RecurringPayment {
+  id            String        @id @default(cuid())
+  title         String
+  amount        Float
+  dayOfMonth    Int           @map("day_of_month") // 1..31
+  categoryId    String        @map("category_id")
+  category      Category      @relation(fields: [categoryId], references: [id])
+  isActive      Boolean       @default(true) @map("is_active")
+  note          String?
+  lastPaidMonth String?       @map("last_paid_month") // "YYYY-MM"
+  createdAt     DateTime      @default(now()) @map("created_at")
+  updatedAt     DateTime      @updatedAt @map("updated_at")
+  transactions  Transaction[]
+
+  @@index([isActive, dayOfMonth])
+  @@map("recurring_payments")
+}
+
+model UserSettings {
+  id                   Int      @id @default(1)
+  mandatoryReserveRate Float    @default(10.0) @map("mandatory_reserve_rate")
+  manualInflationRate  Float    @default(2.5) @map("manual_inflation_rate")
+  updatedAt            DateTime @updatedAt @map("updated_at")
+
+  @@map("user_settings")
+}
+
+model WealthAsset {
+  id                  String          @id @default(uuid())
+  name                String
+  category            String          @default("SAVINGS") // "SAVINGS" | "STOCKS" | "REAL_ESTATE" | "OTHER"
+  currentValue        Float           @map("current_value")
+  monthlyContribution Float           @default(0) @map("monthly_contribution")
+  expectedAnnualYield Float           @default(3.0) @map("expected_annual_yield")
+  lastUpdated         DateTime        @default(now()) @map("last_updated")
+  snapshots           AssetSnapshot[]
+
+  @@index([category])
+  @@map("wealth_assets")
+}
+
+model AssetSnapshot {
+  id         String      @id @default(uuid())
+  assetId    String      @map("asset_id")
+  asset      WealthAsset @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  value      Float
+  recordedAt DateTime    @default(now()) @map("recorded_at")
+
+  @@index([assetId, recordedAt])
+  @@map("asset_snapshots")
+}
+
+model ReserveExpense {
+  id        String   @id @default(uuid())
+  amount    Float
+  date      DateTime @default(now())
+  note      String?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([date])
+  @@map("reserve_expenses")
+}
+
+model TrackedProduct {
+  id                 String       @id @default(uuid())
+  name               String
+  unit               String       @default("unité")
+  targetAlertPercent Float        @default(5.0) @map("target_alert_percent")
+  createdAt          DateTime     @default(now()) @map("created_at")
+  entries            PriceEntry[]
+
+  @@map("tracked_products")
+}
+
+model PriceEntry {
+  id         String         @id @default(uuid())
+  productId  String         @map("product_id")
+  product    TrackedProduct @relation(fields: [productId], references: [id], onDelete: Cascade)
+  price      Float
+  store      String?
+  recordedAt DateTime       @default(now()) @map("recorded_at")
+
+  @@index([productId, recordedAt])
+  @@map("price_entries")
+}
+
+model MonthlyReport {
+  id                String   @id @default(uuid())
+  month             String   @unique // "YYYY-MM"
+  totalIncome       Float    @map("total_income")
+  totalExpenses     Float    @map("total_expenses")
+  reserveAmount     Float    @map("reserve_amount")
+  netWorthEnd       Float    @map("net_worth_end")
+  personalInflation Float    @map("personal_inflation")
+  notes             String?
+  closedAt          DateTime @default(now()) @map("closed_at")
+
+  @@index([month])
+  @@map("monthly_reports")
+}
+
+model TaxProfile {
+  id               Int      @id @default(1)
+  fiscalParts      Float    @default(1.0) @map("fiscal_parts")
+  deductionMode    String   @default("STANDARD_10") @map("deduction_mode") // "STANDARD_10" | "ACTUAL_FEES"
+  actualFeesAmount Float    @default(0) @map("actual_fees_amount")
+  withheldTaxPaid  Float    @default(0) @map("withheld_tax_paid")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  @@map("tax_profiles")
+}
+
+model TaxEntry {
+  id          String   @id @default(uuid())
+  year        Int
+  category    String   @default("INCOME") // "INCOME" | "CAPITAL" | "LOCAL" | "OTHER"
+  label       String
+  taxableBase Float    @default(0) @map("taxable_base")
+  computedTax Float    @default(0) @map("computed_tax")
+  notes       String?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([year, category])
+  @@map("tax_entries")
+}
+
+model CustomIndex {
+  id          String           @id @default(uuid())
+  name        String
+  description String?
+  baseValue   Float            @default(100.0) @map("base_value")
+  type        String           @default("COMPOSITE") // "COMPOSITE" | "MANUAL"
+  createdAt   DateTime         @default(now()) @map("created_at")
+  components  IndexComponent[]
+  dataPoints  IndexDataPoint[]
+
+  @@map("custom_indices")
+}
+
+model IndexComponent {
+  id                 String      @id @default(uuid())
+  indexId            String      @map("index_id")
+  index              CustomIndex @relation(fields: [indexId], references: [id], onDelete: Cascade)
+  sourceType         String      @map("source_type") // "TRACKED_PRODUCT" | "EXPENSE_CATEGORY" | "WEALTH_ASSET" | "MANUAL_SERIES"
+  sourceId           String?     @map("source_id")
+  label              String
+  weightPercent      Float       @map("weight_percent")
+  baseReferenceValue Float       @map("base_reference_value")
+
+  @@index([indexId])
+  @@map("index_components")
+}
+
+model IndexDataPoint {
+  id         String      @id @default(uuid())
+  indexId    String      @map("index_id")
+  index      CustomIndex @relation(fields: [indexId], references: [id], onDelete: Cascade)
+  value      Float
+  recordedAt DateTime    @default(now()) @map("recorded_at")
+
+  @@index([indexId, recordedAt])
+  @@map("index_data_points")
+}

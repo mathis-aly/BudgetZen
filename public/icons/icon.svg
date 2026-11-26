@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0A84FF"/>
+      <stop offset="55%" stop-color="#007AFF"/>
+      <stop offset="100%" stop-color="#5856D6"/>
+    </linearGradient>
+    <linearGradient id="card" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.98"/>
+      <stop offset="100%" stop-color="#EAF3FF" stop-opacity="0.92"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="115" fill="url(#bg)"/>
+  <!-- Wallet card body -->
+  <rect x="96" y="148" width="320" height="220" rx="44" fill="url(#card)"/>
+  <!-- Accent gauge bar inside card -->
+  <rect x="136" y="200" width="150" height="22" rx="11" fill="#007AFF" fill-opacity="0.18"/>
+  <rect x="136" y="200" width="96" height="22" rx="11" fill="#34C759"/>
+  <!-- Euro / balance bars -->
+  <rect x="136" y="250" width="200" height="18" rx="9" fill="#1C1C1E" fill-opacity="0.14"/>
+  <rect x="136" y="286" width="130" height="18" rx="9" fill="#1C1C1E" fill-opacity="0.1"/>
+  <!-- Floating clasp circle -->
+  <circle cx="358" cy="258" r="34" fill="#007AFF"/>
+  <path d="M358 242v32M342 258h32" stroke="#FFFFFF" stroke-width="7" stroke-linecap="round"/>
+</svg>
