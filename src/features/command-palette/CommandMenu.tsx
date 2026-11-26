@@ -12,6 +12,7 @@ import {
   Landmark,
   LayoutDashboard,
   ListOrdered,
+  Lock,
   Moon,
   Plus,
   Scale,
@@ -23,7 +24,7 @@ import {
   Sun,
 } from 'lucide-react';
 import { formatCurrency, parseQuickCommand } from '@/core';
-import { useTheme } from '@/components/ui';
+import { usePrivacyShield, useTheme } from '@/components/ui';
 import type { NavTab } from '@/features/dashboard';
 import { cn } from '@/lib/cn';
 import { useCommandPalette } from './CommandPaletteContext';
@@ -39,18 +40,26 @@ function Kbd({ children }: { children: React.ReactNode }) {
 
 export function CommandMenu() {
   const { open, setOpen, toggle, bridge } = useCommandPalette();
+  const { isLocked, lock } = usePrivacyShield();
   const { theme, toggleTheme } = useTheme();
   const [search, setSearch] = useState('');
   const [submittingQuick, setSubmittingQuick] = useState(false);
 
-  // Wire all global macOS / Windows keyboard shortcuts
+  // Wire all global macOS / Windows keyboard shortcuts (isolated while Privacy Shield is locked)
   useGlobalShortcuts({
+    isLocked,
     isPaletteOpen: open,
     onTogglePalette: toggle,
     onClosePalette: () => setOpen(false),
     onOpenQuickAdd: bridge.openQuickAdd,
     onNavigate: bridge.navigate,
   });
+
+  useEffect(() => {
+    if (isLocked && open) {
+      setOpen(false);
+    }
+  }, [isLocked, open, setOpen]);
 
   useEffect(() => {
     if (!open) {
@@ -222,6 +231,21 @@ export function CommandMenu() {
                       <Kbd>⌘</Kbd>
                       <Kbd>E</Kbd>
                     </div>
+                  </Command.Item>
+
+                  <Command.Item
+                    value="Verrouiller l'écran bouclier confidentialité privacy shield cacher masquer"
+                    onSelect={() => {
+                      setOpen(false);
+                      lock();
+                    }}
+                    className="flex items-center justify-between gap-3 px-3 py-2 rounded-sm text-sm text-[#141413] dark:text-[#F2F0E8] cursor-pointer select-none data-[selected=true]:bg-[#141413] data-[selected=true]:text-[#F7F6F2] dark:data-[selected=true]:bg-[#F2F0E8] dark:data-[selected=true]:text-[#111110] transition-colors"
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <Lock className="h-4 w-4 shrink-0" />
+                      <span className="font-medium">Verrouiller l’écran (Confidentialité)</span>
+                    </div>
+                    <Kbd>Échap ×2</Kbd>
                   </Command.Item>
 
                   <Command.Item

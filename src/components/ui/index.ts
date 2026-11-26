@@ -9,7 +9,7 @@ export * from './ThemeProvider';
 export * from './Toast';
 export * from './ExportCsvButton';
 export * from './ImportCsvModal';
-export * from './EditorialSplashProvider';
+export * from './PrivacyShield';
 export * from './RollingNumber';
 export * from './EditorialMotion';
 export * from './TimeframeSelector';
