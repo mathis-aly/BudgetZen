@@ -15,12 +15,14 @@ import {
   Trash2,
 } from 'lucide-react';
 import {
+  RecurringPaymentDTO,
   TaxDeductionMode,
   TaxEntryDTO,
   TaxProfileDTO,
   computeGlobalTaxSummary,
   formatCurrency,
   formatPercent,
+  getMonthlyFixedIncome,
 } from '@/core';
 import { Badge, Button, Card, RollingNumber, SectionHeader } from '@/components/ui';
 import { cn } from '@/lib/cn';
@@ -29,11 +31,13 @@ import { TaxEntryModal } from './TaxEntryModal';
 export function TaxesView({
   taxProfile,
   taxEntries,
+  recurringPayments = [],
   currency = 'EUR',
   onChanged,
 }: {
   taxProfile: TaxProfileDTO;
   taxEntries: TaxEntryDTO[];
+  recurringPayments?: RecurringPaymentDTO[];
   currency?: string;
   onChanged: (message: string) => Promise<void>;
 }) {
@@ -79,14 +83,24 @@ export function TaxesView({
     Math.abs(liveProfile.actualFeesAmount - taxProfile.actualFeesAmount) > 0.01 ||
     Math.abs(liveProfile.withheldTaxPaid - taxProfile.withheldTaxPaid) > 0.01;
 
+  const monthlyTaxableFixed = useMemo(
+    () => getMonthlyFixedIncome(recurringPayments, { taxableOnly: true }),
+    [recurringPayments]
+  );
+  const estimatedAnnualTaxableIncome = useMemo(
+    () => Math.round(monthlyTaxableFixed * 12 * 100) / 100,
+    [monthlyTaxableFixed]
+  );
+
   const taxSummary = useMemo(
     () =>
       computeGlobalTaxSummary({
         profile: liveProfile,
         entries: taxEntries,
         year: currentYear,
+        estimatedAnnualTaxableIncome,
       }),
-    [liveProfile, taxEntries, currentYear]
+    [liveProfile, taxEntries, currentYear, estimatedAnnualTaxableIncome]
   );
 
   const yearEntries = useMemo(
@@ -454,6 +468,13 @@ export function TaxesView({
 
               {/* Entries */}
               <div className="space-y-1.5 pt-2 border-t border-black/[0.05] dark:border-white/[0.07]">
+                {incomeEntries.length === 0 && estimatedAnnualTaxableIncome > 0 && (
+                  <p className="font-mono text-[11px] text-[#15803D] dark:text-[#22C55E] tabular-nums">
+                    Pré-estimation échéancier :{' '}
+                    {formatCurrency(monthlyTaxableFixed, currency)}/m × 12 ={' '}
+                    {formatCurrency(estimatedAnnualTaxableIncome, currency)}
+                  </p>
+                )}
                 {incomeEntries.map((entry) => (
                   <div
                     key={entry.id}
@@ -734,6 +755,8 @@ export function TaxesView({
         onClose={() => setEntryModalOpen(false)}
         year={currentYear}
         editingEntry={editingEntry}
+        suggestedAnnualIncome={estimatedAnnualTaxableIncome}
+        currency={currency}
         onSaved={onChanged}
       />
     </div>

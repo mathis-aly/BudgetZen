@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { Check } from 'lucide-react';
-import { TaxEntryCategory, TaxEntryDTO } from '@/core';
+import { TaxEntryCategory, TaxEntryDTO, formatCurrency } from '@/core';
 import { Button, Modal } from '@/components/ui';
 import { cn } from '@/lib/cn';
 
@@ -22,12 +22,16 @@ export function TaxEntryModal({
   onClose,
   year,
   editingEntry,
+  suggestedAnnualIncome = 0,
+  currency = 'EUR',
   onSaved,
 }: {
   open: boolean;
   onClose: () => void;
   year: number;
   editingEntry: TaxEntryDTO | null;
+  suggestedAnnualIncome?: number;
+  currency?: string;
   onSaved: (message: string) => Promise<void>;
 }) {
   const [category, setCategory] = useState<TaxEntryCategory>('INCOME');
@@ -184,6 +188,22 @@ export function TaxEntryModal({
             onChange={(e) => setAmountStr(e.target.value.replace(/[^0-9.,]/g, ''))}
             className="w-full h-11 px-3.5 rounded-2xl bg-zinc-100 dark:bg-[#2C2C2E] text-base font-bold tabular-nums text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#007AFF]/40"
           />
+          {!editingEntry &&
+            category === 'INCOME' &&
+            suggestedAnnualIncome > 0 && (
+              <button
+                type="button"
+                onClick={() => {
+                  setAmountStr(String(suggestedAnnualIncome));
+                  if (!label.trim()) {
+                    setLabel('Revenus fixes annuels imposables');
+                  }
+                }}
+                className="mt-1.5 inline-flex items-center px-2 py-1 rounded-sm border border-[#15803D]/35 bg-[#15803D]/[0.06] text-[#15803D] dark:border-[#22C55E]/35 dark:text-[#22C55E] font-mono text-[11px] tabular-nums hover:border-[#15803D] transition-colors"
+              >
+                Pré-remplir via échéancier ({formatCurrency(suggestedAnnualIncome, currency)})
+              </button>
+            )}
         </div>
 
         <div>

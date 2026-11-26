@@ -67,6 +67,8 @@ model RecurringPayment {
   id            String        @id @default(cuid())
   title         String
   amount        Float
+  type          String        @default("EXPENSE") // "EXPENSE" | "INCOME"
+  isTaxable     Boolean       @default(true) @map("is_taxable")
   dayOfMonth    Int           @map("day_of_month") // 1..31
   categoryId    String        @map("category_id")
   category      Category      @relation(fields: [categoryId], references: [id])

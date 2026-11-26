@@ -14,6 +14,7 @@ import {
 import {
   computeCurrentBalance,
   filterTransactionsByMonth,
+  getMonthlyFixedIncome,
 } from './budget';
 import { computeRemainingFixedCharges } from './recurring';
 import { calculateProductInflation } from './inflation';
@@ -81,7 +82,11 @@ export function computeMonthlySummary(
       : 0;
 
   const mandatoryReserveRate = Math.max(0, settings.mandatoryReserveRate);
-  const reserveAmount = roundCurrency(totalIncome * (mandatoryReserveRate / 100));
+  const expectedFixedIncome = getMonthlyFixedIncome(recurringPayments);
+  const reserveIncomeBase = Math.max(totalIncome, expectedFixedIncome);
+  const reserveAmount = roundCurrency(
+    reserveIncomeBase * (mandatoryReserveRate / 100)
+  );
   const reserveUsed = roundCurrency(
     reserveExpenses
       .filter((e) => getMonthKey(new Date(e.date)) === monthKey)

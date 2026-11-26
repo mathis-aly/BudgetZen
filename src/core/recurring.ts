@@ -2,6 +2,7 @@ import {
   CategoryDTO,
   RecurringPaymentDTO,
   TransactionDTO,
+  TransactionType,
   UpcomingRecurringItem,
 } from './types';
 import {
@@ -12,6 +13,15 @@ import {
   shiftMonthKey,
   toISODateOnly,
 } from './format';
+
+/**
+ * Normalizes the recurring direction (`INCOME` vs `EXPENSE`), defaulting legacy rows to `EXPENSE`.
+ */
+export function getRecurringType(
+  payment: Pick<RecurringPaymentDTO, 'type'>
+): TransactionType {
+  return payment.type === 'INCOME' ? 'INCOME' : 'EXPENSE';
+}
 
 /**
  * Computes the actual due date for a recurring payment within a given month,
@@ -133,11 +143,15 @@ export function getUpcomingRecurringPayments(
     }
   }
 
-  return upcoming.sort((a, b) => a.daysUntilDue - b.daysUntilDue);
+  return upcoming.sort(
+    (a, b) =>
+      a.daysUntilDue - b.daysUntilDue ||
+      a.payment.dayOfMonth - b.payment.dayOfMonth
+  );
 }
 
 /**
- * Computes the exact sum of remaining unpaid fixed charges for the specified month.
+ * Computes the exact sum of remaining unpaid fixed EXPENSE charges for the specified month.
  */
 export function computeRemainingFixedCharges(
   payments: RecurringPaymentDTO[],
@@ -149,7 +163,7 @@ export function computeRemainingFixedCharges(
   let paidAmount = 0;
 
   for (const payment of payments) {
-    if (!payment.isActive) continue;
+    if (!payment.isActive || getRecurringType(payment) !== 'EXPENSE') continue;
     if (isRecurringPaidForMonth(payment, monthKey, transactions)) {
       paidAmount += payment.amount;
     } else {
@@ -162,5 +176,42 @@ export function computeRemainingFixedCharges(
     remainingAmount: roundCurrency(remainingAmount),
     remainingCount,
     paidAmount: roundCurrency(paidAmount),
+  };
+}
+
+/**
+ * Computes expected, collected, and remaining fixed INCOME items for the specified month.
+ */
+export function computeRemainingFixedIncome(
+  payments: RecurringPaymentDTO[],
+  monthKey: string,
+  transactions: TransactionDTO[] = []
+): {
+  remainingAmount: number;
+  remainingCount: number;
+  paidAmount: number;
+  totalExpectedAmount: number;
+} {
+  let remainingAmount = 0;
+  let remainingCount = 0;
+  let paidAmount = 0;
+  let totalExpectedAmount = 0;
+
+  for (const payment of payments) {
+    if (!payment.isActive || getRecurringType(payment) !== 'INCOME') continue;
+    totalExpectedAmount += payment.amount;
+    if (isRecurringPaidForMonth(payment, monthKey, transactions)) {
+      paidAmount += payment.amount;
+    } else {
+      remainingAmount += payment.amount;
+      remainingCount += 1;
+    }
+  }
+
+  return {
+    remainingAmount: roundCurrency(remainingAmount),
+    remainingCount,
+    paidAmount: roundCurrency(paidAmount),
+    totalExpectedAmount: roundCurrency(totalExpectedAmount),
   };
 }

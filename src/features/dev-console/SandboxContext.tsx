@@ -328,7 +328,8 @@ export function SandboxProvider({ children }: { children: React.ReactNode }) {
       if (
         !parsedUrl ||
         parsedUrl.origin !== window.location.origin ||
-        !parsedUrl.pathname.startsWith('/api/')
+        !parsedUrl.pathname.startsWith('/api/') ||
+        parsedUrl.pathname.startsWith('/api/markets')
       ) {
         return nativeFetch(input, init);
       }

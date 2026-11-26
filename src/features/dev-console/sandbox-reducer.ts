@@ -445,10 +445,15 @@ export function applySandboxApiMutation(
     }
     if (!categoryId) return fail(state, 'La catégorie est requise.');
 
+    const recType = body.type === 'INCOME' ? 'INCOME' : 'EXPENSE';
+    const isTaxable =
+      typeof body.isTaxable === 'boolean' ? body.isTaxable : true;
     const created: RecurringPaymentDTO = {
       id: createSandboxId('rec'),
       title,
       amount: roundCurrency(amount),
+      type: recType,
+      isTaxable: recType === 'INCOME' ? isTaxable : true,
       dayOfMonth,
       categoryId,
       isActive: true,
@@ -484,7 +489,7 @@ export function applySandboxApiMutation(
     const createdTx: TransactionDTO = {
       id: createSandboxId('tx'),
       amount: payment.amount,
-      type: 'EXPENSE',
+      type: payment.type === 'INCOME' ? 'INCOME' : 'EXPENSE',
       date: nowIso,
       note: payment.note ? `${payment.title} — ${payment.note}` : payment.title,
       categoryId: payment.categoryId,
@@ -511,6 +516,12 @@ export function applySandboxApiMutation(
         if (Number.isFinite(amount) && amount > 0) {
           item.amount = roundCurrency(amount);
         }
+      }
+      if (body.type === 'EXPENSE' || body.type === 'INCOME') {
+        item.type = body.type;
+      }
+      if (typeof body.isTaxable === 'boolean') {
+        item.isTaxable = body.isTaxable;
       }
       if (body.dayOfMonth !== undefined) {
         const d = Number(body.dayOfMonth);

@@ -21,12 +21,15 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const title = typeof body.title === 'string' ? body.title.trim() : '';
     const amount = Number(body.amount);
+    const type = body.type === 'INCOME' ? 'INCOME' : 'EXPENSE';
+    const isTaxable =
+      typeof body.isTaxable === 'boolean' ? body.isTaxable : true;
     const dayOfMonth = Math.min(31, Math.max(1, Math.round(Number(body.dayOfMonth) || 1)));
     const categoryId = typeof body.categoryId === 'string' ? body.categoryId : '';
     const note = typeof body.note === 'string' && body.note.trim() ? body.note.trim() : null;
 
     if (!title) {
-      return NextResponse.json({ error: 'Le titre de la charge fixe est requis.' }, { status: 400 });
+      return NextResponse.json({ error: 'Le titre de l’échéance fixe est requis.' }, { status: 400 });
     }
     if (!Number.isFinite(amount) || amount <= 0) {
       return NextResponse.json({ error: 'Le montant doit être supérieur à 0.' }, { status: 400 });
@@ -39,6 +42,8 @@ export async function POST(request: NextRequest) {
       data: {
         title,
         amount: Math.round(amount * 100) / 100,
+        type,
+        isTaxable: type === 'INCOME' ? isTaxable : true,
         dayOfMonth,
         categoryId,
         note,
@@ -50,7 +55,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('POST /api/recurring error:', error);
     return NextResponse.json(
-      { error: 'Impossible de créer la charge fixe.' },
+      { error: 'Impossible de créer cette échéance fixe.' },
       { status: 500 }
     );
   }

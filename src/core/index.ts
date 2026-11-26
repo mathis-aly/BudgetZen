@@ -14,3 +14,4 @@ export * from './analytics';
 export * from './optimizer';
 export * from './planning';
 export * from './projects';
+export * from './markets';
