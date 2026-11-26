@@ -21,6 +21,7 @@ function isEditableElement(target: EventTarget | null): boolean {
 }
 
 export interface GlobalShortcutsOptions {
+  isLocked?: boolean;
   isPaletteOpen: boolean;
   onTogglePalette: () => void;
   onClosePalette: () => void;
@@ -34,8 +35,10 @@ export interface GlobalShortcutsOptions {
  * - ⌘+E / Ctrl+E (and plain `N` when no text field is focused) : Open Quick Add Transaction modal
  * - ⌘+1..⌘+6 / Ctrl+1..6 : Navigate directly to primary views
  * - ⌘+Enter / Ctrl+Enter : Submit the active form inside any currently open modal dialog
+ * Automatically isolated whenever `isLocked === true` (Privacy Shield active).
  */
 export function useGlobalShortcuts({
+  isLocked = false,
   isPaletteOpen,
   onTogglePalette,
   onClosePalette,
@@ -43,6 +46,8 @@ export function useGlobalShortcuts({
   onNavigate,
 }: GlobalShortcutsOptions) {
   useEffect(() => {
+    if (isLocked) return;
+
     const handleKeyDown = (e: KeyboardEvent) => {
       const mod = e.metaKey || e.ctrlKey;
       const keyLower = e.key.toLowerCase();
@@ -112,5 +117,5 @@ export function useGlobalShortcuts({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isPaletteOpen, onTogglePalette, onClosePalette, onOpenQuickAdd, onNavigate]);
+  }, [isLocked, isPaletteOpen, onTogglePalette, onClosePalette, onOpenQuickAdd, onNavigate]);
 }

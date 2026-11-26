@@ -11,6 +11,7 @@ import {
   Landmark,
   LayoutDashboard,
   ListOrdered,
+  Lock,
   Plus,
   Scale,
   Search,
@@ -37,7 +38,13 @@ import {
   shiftMonthKey,
 } from '@/core';
 import type { AppBootstrapData } from '@/lib/data';
-import { Button, ThemeToggle, ToastContainer, ToastMessage } from '@/components/ui';
+import {
+  Button,
+  ThemeToggle,
+  ToastContainer,
+  ToastMessage,
+  usePrivacyShield,
+} from '@/components/ui';
 import {
   BalanceEditModal,
   DashboardView,
@@ -83,6 +90,7 @@ export function BudgetAppShell({ initialData }: { initialData: AppBootstrapData 
   const [exceptionalModalOpen, setExceptionalModalOpen] = useState(false);
   const [toast, setToast] = useState<ToastMessage | null>(null);
   const { registerBridge, setOpen: setPaletteOpen } = useCommandPalette();
+  const { lock: lockPrivacyShield } = usePrivacyShield();
 
   const showToast = useCallback((text: string, tone: 'success' | 'error' = 'success') => {
     const id = Date.now();
@@ -639,6 +647,39 @@ export function BudgetAppShell({ initialData }: { initialData: AppBootstrapData 
           />
         )}
       </main>
+
+      {/* Discrete Swiss Editorial Footer with Privacy Shield Shortcut Hint */}
+      <footer className="hidden md:block border-t border-[#E2E0D8] dark:border-[#2A2A27] bg-[#FCFBF9] dark:bg-[#141413]">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 h-10 flex items-center justify-between gap-4 font-mono text-[10px] text-[#5C5B57] dark:text-[#9A9890]">
+          <span className="uppercase tracking-[0.14em]">
+            BUDGETZEN · ML · ÉDITION PRIVÉE
+          </span>
+          <div className="flex items-center gap-4">
+            <button
+              type="button"
+              onClick={() => setPaletteOpen(true)}
+              className="hover:text-[#141413] dark:hover:text-[#F2F0E8] transition-colors inline-flex items-center gap-1.5"
+            >
+              <span>Command Palette</span>
+              <kbd className="px-1 py-0.5 rounded-sm border border-[#E2E0D8] dark:border-[#2A2A27] bg-[#FFFFFF] dark:bg-[#181816] text-[9px] font-semibold">
+                ⌘K
+              </kbd>
+            </button>
+            <button
+              type="button"
+              onClick={lockPrivacyShield}
+              title="Verrouiller instantanément l'écran (double appui sur Échap)"
+              className="hover:text-[#141413] dark:hover:text-[#F2F0E8] transition-colors inline-flex items-center gap-1.5"
+            >
+              <Lock className="h-3 w-3" />
+              <span>Verrouiller l’écran</span>
+              <kbd className="px-1 py-0.5 rounded-sm border border-[#E2E0D8] dark:border-[#2A2A27] bg-[#FFFFFF] dark:bg-[#181816] text-[9px] font-semibold">
+                Échap ×2
+              </kbd>
+            </button>
+          </div>
+        </div>
+      </footer>
 
       {/* Crisp Editorial Action Button (+) — Matte Ink, Zero Glow, Micro-Rounded */}
       <button

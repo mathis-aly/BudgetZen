@@ -66,6 +66,11 @@
   @apply border-[#E2E0D8] dark:border-[#2A2A27];
 }
 
+/* Prevent any flash of preloader on reloads within the same session */
+html[data-intro-seen="1"] #shield-preloader {
+  display: none !important;
+}
+
 /* Crisp minimal scrollbar */
 ::-webkit-scrollbar {
   width: 6px;
