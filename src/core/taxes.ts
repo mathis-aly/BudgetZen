@@ -198,15 +198,26 @@ export function computeGlobalTaxSummary(params: {
   profile: TaxProfileDTO;
   entries: TaxEntryDTO[];
   year?: number;
+  estimatedAnnualTaxableIncome?: number;
 }): GlobalTaxSummary {
   const year = params.year ?? new Date().getFullYear();
   const yearEntries = params.entries.filter((e) => e.year === year);
-
-  const grossIncomeBase = roundCurrency(
-    yearEntries
-      .filter((e) => e.category === 'INCOME')
-      .reduce((sum, e) => sum + Math.max(0, e.taxableBase), 0)
+  const yearIncomeEntries = yearEntries.filter((e) => e.category === 'INCOME');
+  const estimatedIncomeFallback = Math.max(
+    0,
+    Number(params.estimatedAnnualTaxableIncome) || 0
   );
+  const isUsingRecurringIncomeEstimate =
+    yearIncomeEntries.length === 0 && estimatedIncomeFallback > 0;
+
+  const grossIncomeBase = isUsingRecurringIncomeEstimate
+    ? roundCurrency(estimatedIncomeFallback)
+    : roundCurrency(
+        yearIncomeEntries.reduce(
+          (sum, e) => sum + Math.max(0, e.taxableBase),
+          0
+        )
+      );
 
   const deductionAmount = computeIncomeDeduction(
     grossIncomeBase,
@@ -260,10 +271,14 @@ export function computeGlobalTaxSummary(params: {
     {
       id: 'line-1aj',
       boxCode: '1AJ',
-      label: 'Traitements, salaires et revenus déclarés',
+      label: isUsingRecurringIncomeEstimate
+        ? 'Salaires / Revenus fixes imposables (pré-estimation × 12)'
+        : 'Traitements, salaires et revenus déclarés',
       amount: grossIncomeBase,
       section: 'REVENUS',
-      hint: 'Cumul des revenus nets imposables annuels avant abattement.',
+      hint: isUsingRecurringIncomeEstimate
+        ? 'Pré-estimé automatiquement depuis vos entrées fixes imposables de l’échéancier (ajoutez un poste Revenus pour surcharger).'
+        : 'Cumul des revenus nets imposables annuels avant abattement.',
     },
     {
       id: 'line-deduction',

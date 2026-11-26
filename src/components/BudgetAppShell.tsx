@@ -33,6 +33,7 @@ import {
   formatMonthLabel,
   generateOptimizationTips,
   getMonthKey,
+  getMonthlyFixedIncome,
   getUpcomingRecurringPayments,
   isWithinEndOfMonthWindow,
   shiftMonthKey,
@@ -270,6 +271,11 @@ export function BudgetAppShell({ initialData }: { initialData: AppBootstrapData 
     return inWindow && !alreadyClosed;
   }, [data.monthlyReports, currentRealMonthKey]);
 
+  const monthlyFixedIncome = useMemo(
+    () => getMonthlyFixedIncome(data.recurringPayments),
+    [data.recurringPayments]
+  );
+
   const handleValidateRecurring = async (item: UpcomingRecurringItem) => {
     const res = await fetch(`/api/recurring/${item.payment.id}/validate`, {
       method: 'POST',
@@ -281,10 +287,12 @@ export function BudgetAppShell({ initialData }: { initialData: AppBootstrapData 
       showToast(d.error || 'Erreur lors de la validation', 'error');
       return;
     }
+    const isIncome = item.payment.type === 'INCOME';
     await refreshData(
-      `Prélèvement « ${item.payment.title} » (${formatCurrency(
-        item.payment.amount,
-        data.settings.currency
+      `${isIncome ? 'Encaissement' : 'Prélèvement'} « ${item.payment.title} » (${formatCurrency(
+        isIncome ? item.payment.amount : -item.payment.amount,
+        data.settings.currency,
+        { showSign: true }
       )}) validé`
     );
   };
@@ -641,6 +649,7 @@ export function BudgetAppShell({ initialData }: { initialData: AppBootstrapData 
           <TaxesView
             taxProfile={data.taxProfile}
             taxEntries={data.taxEntries}
+            recurringPayments={data.recurringPayments}
             currency={data.settings.currency}
             onChanged={refreshData}
           />
@@ -686,9 +695,11 @@ export function BudgetAppShell({ initialData }: { initialData: AppBootstrapData 
           <ProjectsView
             projects={data.financialProjects}
             monthlyIncome={
-              summary.monthIncome > 0
-                ? summary.monthIncome
-                : data.settings.monthlyIncomeTarget
+              monthlyFixedIncome > 0
+                ? monthlyFixedIncome
+                : summary.monthIncome > 0
+                  ? summary.monthIncome
+                  : data.settings.monthlyIncomeTarget
             }
             resteAVivre={summary.resteAVivre}
             currency={data.settings.currency}

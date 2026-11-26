@@ -12,6 +12,8 @@ export async function PATCH(
     const data: {
       title?: string;
       amount?: number;
+      type?: string;
+      isTaxable?: boolean;
       dayOfMonth?: number;
       categoryId?: string;
       isActive?: boolean;
@@ -27,6 +29,12 @@ export async function PATCH(
       if (Number.isFinite(amount) && amount > 0) {
         data.amount = Math.round(amount * 100) / 100;
       }
+    }
+    if (body.type === 'EXPENSE' || body.type === 'INCOME') {
+      data.type = body.type;
+    }
+    if (typeof body.isTaxable === 'boolean') {
+      data.isTaxable = body.isTaxable;
     }
     if (body.dayOfMonth !== undefined) {
       const day = Math.round(Number(body.dayOfMonth));

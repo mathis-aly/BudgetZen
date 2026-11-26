@@ -193,6 +193,8 @@ export async function getBootstrapData(): Promise<AppBootstrapData> {
       id: r.id,
       title: r.title,
       amount: r.amount,
+      type: (r.type === 'INCOME' ? 'INCOME' : 'EXPENSE') as TransactionType,
+      isTaxable: r.isTaxable,
       dayOfMonth: r.dayOfMonth,
       categoryId: r.categoryId,
       isActive: r.isActive,

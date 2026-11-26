@@ -3,7 +3,9 @@
 import React, { useState } from 'react';
 import {
   AlertTriangle,
+  ArrowDownLeft,
   ArrowRight,
+  ArrowUpRight,
   CalendarClock,
   CheckCircle2,
   Flame,
@@ -25,6 +27,7 @@ import {
   formatCurrency,
   formatDateShort,
   formatPercent,
+  getRecurringType,
 } from '@/core';
 import {
   AlertStatusBadge,
@@ -39,6 +42,7 @@ import {
   SectionHeader,
   SpendingPaceGauge,
 } from '@/components/ui';
+import { MarketTickerBar } from '@/features/markets';
 import { cn } from '@/lib/cn';
 
 export type NavTab =
@@ -119,6 +123,11 @@ export function DashboardView({
 
   return (
     <EditorialStagger className="space-y-6">
+      {/* 0. SWISS EDITORIAL MARKET TICKER RIBBON (EUR/USD, OR, ARGENT) */}
+      <EditorialBlock>
+        <MarketTickerBar />
+      </EditorialBlock>
+
       {/* 1. HERO LEDGER CARD: Editorial Serif Reste à Vivre + Swiss Grid Breakdown + Gauge */}
       <EditorialBlock>
         <Card padded={false} className="overflow-hidden" data-tour="sandbox-reste-reserve">
@@ -143,6 +152,28 @@ export function DashboardView({
                 Disponible après déduction des échéances fixes restantes et du bouclier de
                 sécurité ({formatPercent(summary.mandatoryReserveRate, 1)})
               </p>
+
+              <div className="mt-2.5 inline-flex flex-wrap items-center gap-x-2 gap-y-0.5 px-2.5 py-1 rounded-sm border border-[#E2E0D8] dark:border-[#2A2A27] bg-[#FCFBF9] dark:bg-[#141413] font-mono text-[11px] tabular-nums">
+                <span className="uppercase tracking-wider text-[10px] text-[#5C5B57] dark:text-[#9A9890]">
+                  Solde projeté fin de mois :
+                </span>
+                <span
+                  className={cn(
+                    'font-semibold',
+                    summary.projectedEndOfMonthBalance >= 0
+                      ? 'text-[#15803D] dark:text-[#22C55E]'
+                      : 'text-[#B91C1C] dark:text-[#EF4444]'
+                  )}
+                >
+                  {formatCurrency(summary.projectedEndOfMonthBalance, currency)}
+                </span>
+                {summary.remainingFixedIncome > 0 && (
+                  <span className="text-[10px] text-[#15803D] dark:text-[#22C55E]">
+                    (+{formatCurrency(summary.remainingFixedIncome, currency)}{' '}
+                    d’entrées fixes à venir)
+                  </span>
+                )}
+              </div>
             </div>
 
             <Button
@@ -361,14 +392,14 @@ export function DashboardView({
       {/* 3. UPCOMING FIXED PAYMENTS + TOP OPTIMIZER RECOMMENDATION */}
       <EditorialBlock>
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-          {/* Upcoming 7-day recurring bills */}
+          {/* Upcoming 7-day recurring bills & fixed inflows */}
           <section>
             <SectionHeader
-              title="Prélèvements sous 7 jours"
+              title="Prochaines échéances (7 jours)"
               subtitle={
                 upcomingRecurring.length > 0
                   ? `${upcomingRecurring.length} échéance(s) fixe(s) imminente(s)`
-                  : 'Aucune charge fixe imminente'
+                  : 'Aucune échéance fixe imminente'
               }
               action={
                 <button
@@ -393,11 +424,13 @@ export function DashboardView({
                     Échéancier à jour
                   </p>
                   <p className="text-xs text-[#5C5B57] dark:text-[#9A9890]">
-                    Aucun prélèvement fixe prévu sur les 7 prochains jours.
+                    Aucun prélèvement ni encaissement fixe prévu sur les 7
+                    prochains jours.
                   </p>
                 </div>
               ) : (
                 upcomingRecurring.map((item) => {
+                  const isIncome = getRecurringType(item.payment) === 'INCOME';
                   const dueLabel = item.isOverdue
                     ? `RETARD ${Math.abs(item.daysUntilDue)}J`
                     : item.daysUntilDue === 0
@@ -421,7 +454,15 @@ export function DashboardView({
                           <p className="text-sm font-semibold text-[#141413] dark:text-[#F2F0E8] truncate">
                             {item.payment.title}
                           </p>
-                          <div className="flex items-center gap-1.5 mt-0.5">
+                          <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                            <Badge tone={isIncome ? 'green' : 'neutral'}>
+                              {isIncome ? (
+                                <ArrowDownLeft className="h-2.5 w-2.5" />
+                              ) : (
+                                <ArrowUpRight className="h-2.5 w-2.5" />
+                              )}
+                              {isIncome ? 'ENTRÉE' : 'SORTIE'}
+                            </Badge>
                             <Badge
                               tone={
                                 item.isOverdue
@@ -442,8 +483,19 @@ export function DashboardView({
                       </div>
 
                       <div className="flex items-center gap-2.5 shrink-0">
-                        <span className="font-mono text-sm font-semibold tabular-nums text-[#141413] dark:text-[#F2F0E8]">
-                          {formatCurrency(item.payment.amount, currency)}
+                        <span
+                          className={cn(
+                            'font-mono text-sm font-semibold tabular-nums',
+                            isIncome
+                              ? 'text-[#15803D] dark:text-[#22C55E]'
+                              : 'text-[#141413] dark:text-[#F2F0E8]'
+                          )}
+                        >
+                          {formatCurrency(
+                            isIncome ? item.payment.amount : -item.payment.amount,
+                            currency,
+                            { showSign: true }
+                          )}
                         </span>
                         <Button
                           size="sm"
@@ -451,10 +503,14 @@ export function DashboardView({
                           loading={validatingId === item.payment.id}
                           onClick={() => handleValidate(item)}
                           className="h-7 px-2.5 font-mono text-[10px] text-[#15803D] border-[#15803D]/30 hover:bg-[#15803D]/[0.08] dark:text-[#22C55E] dark:border-[#22C55E]/35"
-                          title="Marquer comme débité en un clic"
+                          title={
+                            isIncome
+                              ? 'Marquer comme encaissé en un clic'
+                              : 'Marquer comme débité en un clic'
+                          }
                         >
                           <CheckCircle2 className="h-3 w-3" />
-                          Débité
+                          {isIncome ? 'Encaissé' : 'Débité'}
                         </Button>
                       </div>
                     </div>
