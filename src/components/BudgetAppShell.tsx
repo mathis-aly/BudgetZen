@@ -26,8 +26,6 @@ import {
   calculateCashErosion,
   computeBudgetSummary,
   computeCategoryBudgetStatuses,
-  computeCategoryDistribution,
-  computeMonthlyEvolution,
   computePersonalInflation,
   filterTransactionsByMonth,
   formatCurrency,
@@ -194,21 +192,6 @@ export function BudgetAppShell({ initialData }: { initialData: AppBootstrapData 
 
   const monthTransactions = useMemo(
     () => filterTransactionsByMonth(data.transactions, selectedMonthKey),
-    [data.transactions, selectedMonthKey]
-  );
-
-  const distribution = useMemo(
-    () =>
-      computeCategoryDistribution({
-        categories: data.categories,
-        transactions: data.transactions,
-        monthKey: selectedMonthKey,
-      }),
-    [data.categories, data.transactions, selectedMonthKey]
-  );
-
-  const monthlyEvolution = useMemo(
-    () => computeMonthlyEvolution(data.transactions, selectedMonthKey, 6),
     [data.transactions, selectedMonthKey]
   );
 
@@ -634,9 +617,8 @@ export function BudgetAppShell({ initialData }: { initialData: AppBootstrapData 
 
         {activeTab === 'analytics' && (
           <AnalyticsView
-            selectedMonthKey={selectedMonthKey}
-            distribution={distribution}
-            monthlyEvolution={monthlyEvolution}
+            transactions={data.transactions}
+            categories={data.categories}
             tips={optimizationTips}
             currency={data.settings.currency}
             onApplyRebalance={handleApplyRebalance}

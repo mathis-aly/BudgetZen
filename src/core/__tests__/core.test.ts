@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  aggregateSeriesByTimeframe,
   calculateBasketInflationIndex,
   calculateCapitalTax2026,
   calculateCashErosion,
@@ -951,5 +952,133 @@ describe('Core Budget Engine', () => {
     expect(commaParsed.delimiter).toBe(',');
     expect(commaParsed.validCount).toBe(1);
     expect(commaParsed.rows[0].amount).toBe(19.99);
+  });
+
+  it('aggregates series dynamically across DAY, WEEK, MONTH, 1Y, 3Y, 5Y, 10Y, ALL with comparative KPIs', () => {
+    const refDate = new Date('2026-11-26T14:00:00.000Z');
+    const multiYearTxs: TransactionDTO[] = [
+      // Previous month window (Oct 2026) -> 2000 income, 1000 expense
+      {
+        id: 'm-prev-1',
+        amount: 2000,
+        type: 'INCOME',
+        date: '2026-10-10T10:00:00.000Z',
+        note: 'Salaire Oct',
+        categoryId: 'cat-salary',
+        recurringPaymentId: null,
+        billingMonth: null,
+      },
+      {
+        id: 'm-prev-2',
+        amount: 1000,
+        type: 'EXPENSE',
+        date: '2026-10-12T10:00:00.000Z',
+        note: 'Courses Oct',
+        categoryId: 'cat-food',
+        recurringPaymentId: null,
+        billingMonth: null,
+      },
+      // Current month window (Nov 2026) -> 2400 income (+20%), 800 expense (-20%)
+      {
+        id: 'm-curr-1',
+        amount: 2400,
+        type: 'INCOME',
+        date: '2026-11-05T10:00:00.000Z',
+        note: 'Salaire Nov',
+        categoryId: 'cat-salary',
+        recurringPaymentId: null,
+        billingMonth: null,
+      },
+      {
+        id: 'm-curr-2',
+        amount: 600,
+        type: 'EXPENSE',
+        date: '2026-11-24T09:30:00.000Z',
+        note: 'Courses Nov',
+        categoryId: 'cat-food',
+        recurringPaymentId: null,
+        billingMonth: null,
+      },
+      {
+        id: 'm-curr-3',
+        amount: 200,
+        type: 'EXPENSE',
+        date: '2026-11-26T11:15:00.000Z',
+        note: 'Déjeuner aujourd’hui',
+        categoryId: 'cat-resto',
+        recurringPaymentId: null,
+        billingMonth: null,
+      },
+      // Older data (2025)
+      {
+        id: 'y-25-1',
+        amount: 300,
+        type: 'EXPENSE',
+        date: '2025-03-15T10:00:00.000Z',
+        note: 'Courses 2025',
+        categoryId: 'cat-food',
+        recurringPaymentId: null,
+        billingMonth: null,
+      },
+    ];
+
+    // DAY -> hour granularity
+    const dayRes = aggregateSeriesByTimeframe(multiYearTxs, 'DAY', {
+      referenceDate: refDate,
+      categories,
+    });
+    expect(dayRes.granularity).toBe('hour');
+    expect(dayRes.totalExpenses).toBe(200);
+    expect(dayRes.series).toHaveLength(1);
+
+    // MONTH -> day granularity + comparative KPIs vs previous 30 days
+    const monthRes = aggregateSeriesByTimeframe(multiYearTxs, 'MONTH', {
+      referenceDate: refDate,
+      categories,
+    });
+    expect(monthRes.granularity).toBe('day');
+    expect(monthRes.totalIncome).toBe(2400);
+    expect(monthRes.totalExpenses).toBe(800);
+    expect(monthRes.netSavings).toBe(1600);
+    expect(monthRes.comparison?.incomeChangePercent).toBe(20);
+    expect(monthRes.comparison?.expensesChangePercent).toBe(-20);
+    expect(monthRes.categoryDistribution).toHaveLength(2);
+
+    // 1Y -> month granularity
+    const yearRes = aggregateSeriesByTimeframe(multiYearTxs, '1Y', {
+      referenceDate: refDate,
+      categories,
+    });
+    expect(yearRes.granularity).toBe('month');
+
+    // 5Y with < 2 years of actual history -> quarter granularity, clamped cleanly with isDataTruncatedToHistory = true
+    const fiveYRes = aggregateSeriesByTimeframe(multiYearTxs, '5Y', {
+      referenceDate: refDate,
+      categories,
+    });
+    expect(fiveYRes.granularity).toBe('quarter');
+    expect(fiveYRes.isDataTruncatedToHistory).toBe(true);
+    expect(fiveYRes.series.length).toBeLessThanOrEqual(8); // no 20 empty quarters!
+
+    // ALL with > 5 years span -> year granularity
+    const longTxs: TransactionDTO[] = [
+      ...multiYearTxs,
+      {
+        id: 'y-2019',
+        amount: 500,
+        type: 'EXPENSE',
+        date: '2019-06-10T10:00:00.000Z',
+        note: 'Historique 2019',
+        categoryId: 'cat-food',
+        recurringPaymentId: null,
+        billingMonth: null,
+      },
+    ];
+    const allLongRes = aggregateSeriesByTimeframe(longTxs, 'ALL', {
+      referenceDate: refDate,
+      categories,
+    });
+    expect(allLongRes.granularity).toBe('year');
+    expect(allLongRes.comparison).toBeNull();
   });
 });

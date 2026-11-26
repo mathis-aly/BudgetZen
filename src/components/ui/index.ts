@@ -12,3 +12,4 @@ export * from './ImportCsvModal';
 export * from './EditorialSplashProvider';
 export * from './RollingNumber';
 export * from './EditorialMotion';
+export * from './TimeframeSelector';

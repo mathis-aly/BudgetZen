@@ -10,4 +10,5 @@ export * from './import';
 export * from './taxes';
 export * from './indices';
 export * from './quick-parser';
+export * from './analytics';
 export * from './optimizer';
