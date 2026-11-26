@@ -182,7 +182,7 @@ export function WealthView({
       </div>
 
       {/* 2. INTERACTIVE COMPOUND INTEREST & INFLATION CHART (1-30 YEARS) */}
-      <Card className="p-4 sm:p-6 space-y-5">
+      <Card className="p-4 sm:p-6 space-y-5" data-tour="sandbox-wealth-sim">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <h3 className="text-[16px] font-semibold text-zinc-900 dark:text-white">
