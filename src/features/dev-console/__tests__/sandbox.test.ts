@@ -375,4 +375,41 @@ describe('Sandbox client reducer isolation', () => {
     expect(deletedRes.state.financialProjects).toHaveLength(0);
     expect(prodState.financialProjects).toHaveLength(0);
   });
+
+  it('creates and validates recurring INCOME items in Sandbox memory without hitting SQLite', () => {
+    const prodState = createFixtureState();
+
+    const createdRes = applySandboxApiMutation(
+      prodState,
+      'POST',
+      '/api/recurring',
+      {
+        title: 'Salaire CDI',
+        amount: 3100,
+        type: 'INCOME',
+        isTaxable: true,
+        dayOfMonth: 5,
+        categoryId: 'cat_salary',
+      }
+    );
+    expect(createdRes.response.status).toBe(201);
+    const createdRec = createdRes.response.data as {
+      id: string;
+      type: string;
+      isTaxable: boolean;
+    };
+    expect(createdRec.type).toBe('INCOME');
+    expect(createdRec.isTaxable).toBe(true);
+
+    const validatedRes = applySandboxApiMutation(
+      createdRes.state,
+      'POST',
+      `/api/recurring/${createdRec.id}/validate`,
+      { billingMonth: '2026-11' }
+    );
+    expect(validatedRes.response.status).toBe(200);
+    expect(validatedRes.state.transactions[0]?.type).toBe('INCOME');
+    expect(validatedRes.state.transactions[0]?.amount).toBe(3100);
+    expect(prodState.recurringPayments).toHaveLength(0);
+  });
 });

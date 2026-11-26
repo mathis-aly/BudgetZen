@@ -45,7 +45,7 @@ export async function POST(
       const createdTx = await tx.transaction.create({
         data: {
           amount: payment.amount,
-          type: 'EXPENSE',
+          type: payment.type === 'INCOME' ? 'INCOME' : 'EXPENSE',
           date: new Date(),
           note: payment.note ? `${payment.title} — ${payment.note}` : payment.title,
           categoryId: payment.categoryId,

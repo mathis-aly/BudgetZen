@@ -21,7 +21,29 @@ import {
   roundCurrency,
   shiftMonthKey,
 } from './format';
-import { computeRemainingFixedCharges } from './recurring';
+import {
+  computeRemainingFixedCharges,
+  computeRemainingFixedIncome,
+  getRecurringType,
+} from './recurring';
+
+/**
+ * Computes the total expected monthly recurring fixed income (`INCOME`).
+ * When `{ taxableOnly: true }` is passed, sums only items marked `isTaxable !== false`.
+ */
+export function getMonthlyFixedIncome(
+  recurringItems: RecurringPaymentDTO[],
+  options?: { taxableOnly?: boolean }
+): number {
+  let sum = 0;
+  for (const item of recurringItems) {
+    if (!item.isActive) continue;
+    if (getRecurringType(item) !== 'INCOME') continue;
+    if (options?.taxableOnly && item.isTaxable === false) continue;
+    sum += item.amount;
+  }
+  return roundCurrency(sum);
+}
 
 /**
  * Evaluates the 3-state alert status for a category:
@@ -183,6 +205,18 @@ export function computeBudgetSummary(params: {
     monthKey,
     params.transactions
   );
+  const {
+    remainingAmount: remainingFixedIncome,
+    remainingCount: remainingFixedIncomeCount,
+    paidAmount: paidFixedIncome,
+  } = computeRemainingFixedIncome(
+    params.recurringPayments,
+    monthKey,
+    params.transactions
+  );
+  const expectedMonthlyFixedIncome = getMonthlyFixedIncome(
+    params.recurringPayments
+  );
 
   const monthTransactions = filterTransactionsByMonth(params.transactions, monthKey);
   let monthIncome = 0;
@@ -200,9 +234,11 @@ export function computeBudgetSummary(params: {
   monthExpenses = roundCurrency(monthExpenses);
   const netMonthFlow = roundCurrency(monthIncome - monthExpenses);
 
-  // Mandatory safety shield ("Bouclier Imprévus")
+  // Mandatory safety shield ("Bouclier Imprévus"):
+  // Sized from day 1 on expected monthly recurring fixed income (or received income if higher).
+  const reserveIncomeBase = Math.max(monthIncome, expectedMonthlyFixedIncome);
   const mandatoryReserveAmount = roundCurrency(
-    monthIncome * (mandatoryReserveRate / 100)
+    reserveIncomeBase * (mandatoryReserveRate / 100)
   );
   const reserveUsedThisMonth = roundCurrency(
     reserveExpenses
@@ -213,10 +249,17 @@ export function computeBudgetSummary(params: {
     Math.max(0, mandatoryReserveAmount - reserveUsedThisMonth)
   );
 
-  // Core formula:
-  // Reste à vivre = Solde actuel - Échéances fixes restantes - (Revenus mensuels * mandatoryReserveRate / 100 - part déjà puisée dans la réserve)
+  // Core prudent formula (never spends uncollected future fixed income):
   const resteAVivre = roundCurrency(
     currentBalance - remainingAmount - reserveRemainingThisMonth
+  );
+
+  // End-of-month balance projection incorporating remaining fixed incomes to be collected:
+  const projectedEndOfMonthBalance = roundCurrency(
+    currentBalance +
+      remainingFixedIncome -
+      remainingAmount -
+      reserveRemainingThisMonth
   );
 
   const activeBudgetedCategories = params.categories.filter(
@@ -257,11 +300,16 @@ export function computeBudgetSummary(params: {
     remainingFixedCharges: remainingAmount,
     remainingFixedCount: remainingCount,
     paidFixedCharges: paidAmount,
+    remainingFixedIncome,
+    remainingFixedIncomeCount,
+    paidFixedIncome,
+    expectedMonthlyFixedIncome,
     mandatoryReserveRate,
     mandatoryReserveAmount,
     reserveUsedThisMonth,
     reserveRemainingThisMonth,
     resteAVivre,
+    projectedEndOfMonthBalance,
     monthIncome,
     monthExpenses,
     netMonthFlow,

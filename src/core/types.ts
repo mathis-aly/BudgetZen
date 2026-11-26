@@ -381,6 +381,8 @@ export interface RecurringPaymentDTO {
   id: string;
   title: string;
   amount: number;
+  type?: TransactionType; // defaults to 'EXPENSE'
+  isTaxable?: boolean; // defaults to true
   dayOfMonth: number;
   categoryId: string;
   isActive: boolean;
@@ -431,11 +433,16 @@ export interface BudgetSummary {
   remainingFixedCharges: number;
   remainingFixedCount: number;
   paidFixedCharges: number;
+  remainingFixedIncome: number;
+  remainingFixedIncomeCount: number;
+  paidFixedIncome: number;
+  expectedMonthlyFixedIncome: number;
   mandatoryReserveRate: number;
   mandatoryReserveAmount: number;
   reserveUsedThisMonth: number;
   reserveRemainingThisMonth: number;
   resteAVivre: number;
+  projectedEndOfMonthBalance: number;
   monthIncome: number;
   monthExpenses: number;
   netMonthFlow: number;
@@ -562,4 +569,49 @@ export interface FinancialProjectMetrics {
   totalLoanInterestCost: number;
   debtToIncomeRatio: number;
   isHighDebtRisk: boolean;
+}
+
+// ============================================================================
+// Module: Marchés & Devises en Temps Réel
+// ============================================================================
+export type MarketSymbol = 'EURUSD' | 'GOLD' | 'SILVER';
+export type MarketRange = '1d' | '5d' | '1mo' | '1y' | '5y' | 'max';
+
+export interface MarketQuoteDTO {
+  symbol: MarketSymbol;
+  label: string;
+  unitCurrency: 'USD' | 'EUR';
+  decimals: 4 | 2;
+  price: number;
+  changePercent: number;
+  previousClose: number;
+}
+
+export interface MarketsSnapshotResponse {
+  quotes: Record<MarketSymbol, MarketQuoteDTO>;
+  updatedAt: string;
+  source: 'LIVE' | 'MIXED' | 'FALLBACK';
+  warning?: string | null;
+}
+
+export interface MarketHistoryPoint {
+  timestamp: number;
+  date: string;
+  close: number;
+}
+
+export interface MarketHistoryResponse {
+  symbol: MarketSymbol;
+  label: string;
+  range: MarketRange;
+  unitCurrency: 'USD' | 'EUR';
+  decimals: 4 | 2;
+  currentPrice: number;
+  changePercent: number;
+  high: number;
+  low: number;
+  points: MarketHistoryPoint[];
+  updatedAt: string;
+  source: 'LIVE' | 'FALLBACK';
+  warning?: string | null;
 }
